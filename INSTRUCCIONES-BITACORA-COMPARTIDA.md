@@ -1,6 +1,6 @@
 # Bitacora compartida para jugadores
 
-GitHub Pages no puede guardar cambios por si solo. La bitacora, la marca de Zyphira y los astilleros navales ya estan preparados para sincronizarse con Supabase.
+GitHub Pages no puede guardar cambios por si solo. La bitacora, la marca de Zyphira, los astilleros navales y la alacena de Lyxandria ya estan preparados para sincronizarse con Supabase.
 
 ## 1. Crear la base de datos
 
@@ -8,7 +8,7 @@ GitHub Pages no puede guardar cambios por si solo. La bitacora, la marca de Zyph
 2. Abre el SQL Editor.
 3. Copia y ejecuta el contenido de `supabase-bitacora.sql`.
 
-Si ya lo habias ejecutado antes de anadir Zyphira y Astilleros, vuelve a ejecutarlo. Asi se actualizan los permisos de las tres filas compartidas.
+Si ya lo habias ejecutado antes de anadir Zyphira, Astilleros o la Alacena, vuelve a ejecutarlo. Asi se actualizan los permisos de las filas compartidas.
 
 ## 2. Pegar las claves en la web
 
@@ -31,9 +31,10 @@ Sube estos archivos junto con el resto de la web:
 
 - `index.html`
 - `bitacora-de-ecos-en-la-costa-v2-zoom-export.html`
+- `alacena-de-lyxandria.html`
 - `supabase-bitacora.sql`
 
-Cuando `url` y `anonKey` esten configuradas, los jugadores veran la misma bitacora, la misma marca de Zyphira y el mismo estado de astilleros. Si no estan configuradas, seguira funcionando en modo local para cada navegador.
+Cuando `url` y `anonKey` esten configuradas, los jugadores veran la misma bitacora, la misma marca de Zyphira, el mismo estado de astilleros y la misma alacena. Si no estan configuradas, seguira funcionando en modo local para cada navegador.
 
 ## Nota de seguridad
 

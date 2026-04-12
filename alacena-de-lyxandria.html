@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alacena de Lyxandria</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #18110f;
+            --wine: #8c1616;
+            --gold: #c2a65a;
+            --leaf: #2f8f5b;
+            --rose: #c44d8d;
+            --mist: #e8e1d3;
+            --paper: #efe0bd;
+            --panel: rgba(24, 17, 15, 0.88);
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: #111;
+            color: var(--mist);
+            font-family: Georgia, 'Times New Roman', serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                linear-gradient(rgba(10, 8, 7, 0.72), rgba(10, 8, 7, 0.88)),
+                url('mod-weapons-midjourney.jpg') center / cover fixed;
+            overflow-x: hidden;
+        }
+
+        button, input, textarea, select {
+            font: inherit;
+        }
+
+        button {
+            border-radius: 6px;
+        }
+
+        .sync-status {
+            position: fixed;
+            left: 18px;
+            bottom: 18px;
+            z-index: 50;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.74);
+            border: 1px solid rgba(194,166,90,0.55);
+            color: var(--gold);
+            font-size: 0.78rem;
+            border-radius: 6px;
+        }
+
+        .sync-status.error {
+            color: #ffb4b4;
+            border-color: var(--wine);
+        }
+
+        .lock-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, rgba(49, 31, 24, 0.92), #050403 72%);
+            transition: opacity 0.7s ease, visibility 0.7s ease;
+        }
+
+        .lock-screen.unlocked {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .lock-wrap {
+            position: relative;
+            width: min(320px, 78vw);
+            height: 360px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lock {
+            position: relative;
+            width: 210px;
+            height: 245px;
+            transition: transform 0.4s ease, opacity 0.6s ease;
+        }
+
+        .lock.opening {
+            transform: translateY(-10px) rotate(-3deg) scale(1.05);
+            opacity: 0;
+        }
+
+        .lock.shake {
+            animation: shake 0.28s linear;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-6px); }
+            80% { transform: translateX(6px); }
+        }
+
+        .shackle {
+            position: absolute;
+            left: 42px;
+            top: 0;
+            width: 126px;
+            height: 120px;
+            border: 20px solid #a48036;
+            border-bottom: 0;
+            border-radius: 70px 70px 0 0;
+            box-shadow: inset 0 0 16px rgba(255,255,255,0.18), 0 12px 18px rgba(0,0,0,0.35);
+        }
+
+        .lock-body {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 210px;
+            height: 165px;
+            background: linear-gradient(145deg, #d8b24e, #8e6826 65%, #573815);
+            border: 3px solid #e6c76a;
+            border-radius: 8px;
+            box-shadow: inset 0 0 22px rgba(255,255,255,0.24), 0 18px 35px rgba(0,0,0,0.52);
+        }
+
+        .keyhole {
+            position: absolute;
+            left: 50%;
+            top: 73px;
+            transform: translateX(-50%);
+            width: 38px;
+            height: 74px;
+            cursor: text;
+        }
+
+        .keyhole::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 0;
+            width: 30px;
+            height: 30px;
+            background: #15100d;
+            border-radius: 50%;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        .keyhole::after {
+            content: '';
+            position: absolute;
+            left: 13px;
+            top: 24px;
+            width: 12px;
+            height: 48px;
+            background: #15100d;
+            border-radius: 8px 8px 4px 4px;
+            box-shadow: inset 0 0 8px #000;
+        }
+
+        .password-panel {
+            position: absolute;
+            left: 50%;
+            top: 292px;
+            transform: translateX(-50%) translateY(8px);
+            opacity: 0;
+            pointer-events: none;
+            width: min(280px, 86vw);
+            display: grid;
+            gap: 8px;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .lock-wrap:hover .password-panel,
+        .password-panel:focus-within {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .password-panel input {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0f0b0a;
+            color: var(--mist);
+            border: 1px solid var(--gold);
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .password-panel button,
+        .primary-btn,
+        .nav-pill,
+        .ingredient-btn,
+        .text-btn {
+            background: #251917;
+            color: var(--mist);
+            border: 1px solid rgba(194,166,90,0.7);
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .password-panel button:hover,
+        .primary-btn:hover,
+        .nav-pill:hover,
+        .ingredient-btn:hover,
+        .text-btn:hover {
+            border-color: var(--rose);
+            color: #fff;
+        }
+
+        .app-shell {
+            min-height: 100vh;
+            padding: 34px 22px 80px;
+        }
+
+        .app-shell.is-locked {
+            filter: blur(3px) brightness(0.5);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        header {
+            max-width: 1120px;
+            margin: 0 auto 24px;
+            border-bottom: 2px solid rgba(194,166,90,0.7);
+            padding-bottom: 18px;
+        }
+
+        .eyebrow {
+            margin: 0 0 6px;
+            color: var(--gold);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+        }
+
+        h1, h2, h3 {
+            margin: 0;
+            color: var(--mist);
+            font-weight: 700;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 6vw, 4.8rem);
+            line-height: 0.95;
+        }
+
+        .top-nav {
+            max-width: 1120px;
+            margin: 0 auto 22px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-pill.active {
+            background: var(--gold);
+            color: #17100d;
+            border-color: var(--gold);
+        }
+
+        .view {
+            display: none;
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .workbench {
+            display: grid;
+            grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .panel,
+        .potion-record,
+        .book {
+            background: var(--panel);
+            border: 1px solid rgba(194,166,90,0.52);
+            border-radius: 8px;
+            box-shadow: 0 18px 38px rgba(0,0,0,0.38);
+        }
+
+        .panel {
+            padding: 18px;
+        }
+
+        .field-label {
+            display: block;
+            color: var(--gold);
+            margin: 0 0 7px;
+            font-size: 0.86rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        select,
+        input[type="text"],
+        textarea {
+            width: 100%;
+            background: #100b0a;
+            color: var(--mist);
+            border: 1px solid rgba(194,166,90,0.6);
+            border-radius: 6px;
+            padding: 10px 12px;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .recipe-meta {
+            display: grid;
+            gap: 8px;
+            margin: 14px 0 0;
+            color: #d8c9ad;
+            font-size: 0.94rem;
+        }
+
+        .cauldron-zone {
+            min-height: 520px;
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(240px, 1fr);
+            gap: 18px;
+            align-items: center;
+        }
+
+        .flask-area {
+            display: grid;
+            justify-items: center;
+            gap: 14px;
+        }
+
+        .flask {
+            width: min(270px, 70vw);
+            aspect-ratio: 0.68;
+            border: 0;
+            background: transparent;
+            padding: 0;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .flask::before {
+            content: '';
+            position: absolute;
+            left: 38%;
+            top: 0;
+            width: 24%;
+            height: 28%;
+            border: 5px solid rgba(232,225,211,0.82);
+            border-bottom: 0;
+            border-radius: 18px 18px 4px 4px;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .flask::after {
+            content: '';
+            position: absolute;
+            left: 14%;
+            bottom: 0;
+            width: 72%;
+            height: 76%;
+            border: 6px solid rgba(232,225,211,0.82);
+            border-radius: 45% 45% 32% 32%;
+            background: linear-gradient(to top, var(--brew-color, rgba(196,77,141,0.0)) var(--fill, 0%), rgba(255,255,255,0.08) var(--fill, 0%));
+            box-shadow: inset 0 0 22px rgba(255,255,255,0.18), 0 18px 30px rgba(0,0,0,0.45);
+        }
+
+        .flask.ready {
+            filter: drop-shadow(0 0 18px var(--brew-color, var(--rose)));
+        }
+
+        .flask.shake {
+            animation: shake 0.28s linear;
+        }
+
+        .flask-hint {
+            min-height: 1.4em;
+            color: var(--gold);
+            text-align: center;
+        }
+
+        .ingredient-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .ingredient-btn.done {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
+        .ingredient-btn.next {
+            border-color: var(--leaf);
+        }
+
+        .progress-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .step-chip {
+            border: 1px solid rgba(194,166,90,0.5);
+            border-radius: 6px;
+            padding: 6px 8px;
+            color: #d8c9ad;
+            background: rgba(0,0,0,0.25);
+        }
+
+        .step-chip.done {
+            background: rgba(47,143,91,0.35);
+            color: #fff;
+        }
+
+        .potion-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+        }
+
+        .potion-record {
+            padding: 16px;
+            border-left: 5px solid var(--brew-color, var(--rose));
+        }
+
+        .muted {
+            color: #baa98b;
+        }
+
+        .book {
+            padding: 22px;
+            background: linear-gradient(90deg, #d7bd87 0 49%, #b28b55 50%, #e7d0a0 51% 100%);
+            color: #2a190f;
+        }
+
+        .book-pages {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 26px;
+            min-height: 520px;
+        }
+
+        .book-page {
+            background: rgba(255,246,218,0.76);
+            border: 1px solid rgba(72,38,18,0.24);
+            border-radius: 6px;
+            padding: 18px;
+        }
+
+        .book-page input,
+        .book-page textarea {
+            background: rgba(255,250,235,0.8);
+            color: #23140e;
+            border-color: rgba(72,38,18,0.42);
+        }
+
+        .file-picker {
+            display: inline-block;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        .image-preview,
+        .entry-image {
+            width: 100%;
+            min-height: 160px;
+            max-height: 300px;
+            object-fit: cover;
+            background: rgba(0,0,0,0.18);
+            border: 1px dashed rgba(72,38,18,0.42);
+            border-radius: 6px;
+        }
+
+        .dissection-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .dissection-entry {
+            background: rgba(255,246,218,0.68);
+            border: 1px solid rgba(72,38,18,0.24);
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .dissection-entry h3 {
+            color: #3a2012;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 820px) {
+            .workbench,
+            .cauldron-zone,
+            .book-pages {
+                grid-template-columns: 1fr;
+            }
+
+            .app-shell {
+                padding: 24px 14px 76px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="lock-screen" id="lock-screen">
+        <div class="lock-wrap">
+            <div class="lock" id="lock">
+                <div class="shackle"></div>
+                <div class="lock-body">
+                    <div class="keyhole" aria-label="cerradura"></div>
+                </div>
+            </div>
+            <form class="password-panel" id="password-form">
+                <input type="password" id="password-input" placeholder="Susurra la palabra de paso" autocomplete="off">
+                <button type="submit">Abrir alacena</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-shell is-locked" id="app-shell">
+        <div class="sync-status" id="sync-status">Guardado local</div>
+
+        <header>
+            <p class="eyebrow">Alacena privada</p>
+            <h1>Alacena de Lyxandria</h1>
+        </header>
+
+        <nav class="top-nav" aria-label="Secciones de la alacena">
+            <button class="nav-pill active" type="button" data-view="potion-craft">Creación de pociones</button>
+            <button class="nav-pill" type="button" data-view="potion-store">Almacén de pociones</button>
+            <button class="nav-pill" type="button" data-view="dissectionary">Diseccionario</button>
+        </nav>
+
+        <section class="view active" id="potion-craft">
+            <div class="workbench">
+                <aside class="panel">
+                    <label class="field-label" for="recipe-select">Poción</label>
+                    <select id="recipe-select"></select>
+                    <div class="recipe-meta" id="recipe-meta"></div>
+                    <div class="progress-steps" id="progress-steps"></div>
+                </aside>
+
+                <div class="panel cauldron-zone">
+                    <div class="flask-area">
+                        <button class="flask" id="flask" type="button" aria-label="Frasco de poción vacío"></button>
+                        <div class="flask-hint" id="flask-hint">Pulsa el frasco y añade el primer ingrediente.</div>
+                        <button class="primary-btn" id="reset-recipe" type="button">Vaciar frasco</button>
+                    </div>
+                    <div>
+                        <h2>Ingredientes</h2>
+                        <p class="muted">Pulsa el frasco y después el ingrediente correcto. El orden importa.</p>
+                        <div class="ingredient-grid" id="ingredient-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="view" id="potion-store">
+            <div class="panel">
+                <h2>Almacén de pociones</h2>
+                <p class="muted">Aquí quedan las pociones terminadas en la mesa de trabajo.</p>
+                <div class="potion-list" id="potion-list"></div>
+            </div>
+        </section>
+
+        <section class="view" id="dissectionary">
+            <div class="book">
+                <div class="book-pages">
+                    <div class="book-page">
+                        <h2>Nuevo registro</h2>
+                        <label class="field-label" for="creature-title">Criatura diseccionada</label>
+                        <input type="text" id="creature-title" placeholder="Nombre de la criatura">
+                        <label class="field-label file-picker" for="creature-image">Buscar imagen en mis archivos</label>
+                        <input type="file" id="creature-image" accept="image/*" hidden>
+                        <img class="image-preview" id="image-preview" alt="Vista previa de la criatura">
+                        <label class="field-label" for="creature-notes">Notas de disección</label>
+                        <textarea id="creature-notes" rows="8" placeholder="Anota cortes, órganos, rarezas, olores imposibles..."></textarea>
+                        <button class="primary-btn" id="save-dissection" type="button">Guardar disección</button>
+                    </div>
+                    <div class="book-page">
+                        <h2>Diseccionario</h2>
+                        <div class="dissection-list" id="dissection-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const PASSWORD = 'SexyQuara';
+        const LOCAL_STORAGE_KEY = 'lyxandria_pantry_v1';
+        const SUPABASE_CONFIG = {
+            url: 'https://ypoelohbvwdpfpxscmxc.supabase.co',
+            anonKey: 'sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO',
+            table: 'campaign_journal',
+            rowId: 'alacena-lyxandria'
+        };
+
+        const RECIPES = [
+            { id: 'curacion', name: 'Poción de curación', rarity: 'Común', effect: 'Restaura 2d4 + 2 puntos de golpe.', color: '#c44d8d', ingredients: ['Pétalos de campana escarlata', 'Miel de abeja lunar', 'Agua bendecida'] },
+            { id: 'curacion-mayor', name: 'Poción de curación mayor', rarity: 'Poco común', effect: 'Restaura 4d4 + 4 puntos de golpe.', color: '#d94c5f', ingredients: ['Raíz de mandrágora dulce', 'Sangre de troll purificada', 'Sal de plata'] },
+            { id: 'curacion-superior', name: 'Poción de curación superior', rarity: 'Rara', effect: 'Restaura 8d4 + 8 puntos de golpe.', color: '#e85d75', ingredients: ['Lágrima de unicornio seca', 'Corazón de rosa negra', 'Polvo de rubí'] },
+            { id: 'curacion-suprema', name: 'Poción de curación suprema', rarity: 'Muy rara', effect: 'Restaura 10d4 + 20 puntos de golpe.', color: '#ff6f91', ingredients: ['Rocío de amanecer celestial', 'Escama de couatl', 'Azafrán de resurrección'] },
+            { id: 'antitoxina', name: 'Antitoxina', rarity: 'Común', effect: 'Ayuda a resistir venenos durante 1 hora.', color: '#2f8f5b', ingredients: ['Carbón de sauce blanco', 'Hojas de menta de cueva', 'Bilis de víbora diluida'] },
+            { id: 'resistencia', name: 'Poción de resistencia', rarity: 'Poco común', effect: 'Otorga resistencia a un tipo de daño.', color: '#2c8f8a', ingredients: ['Ceniza elemental', 'Sal de hierro frío', 'Aceite de escarabajo'] },
+            { id: 'aliento-fuego', name: 'Poción de aliento de fuego', rarity: 'Poco común', effect: 'Permite exhalar llamas brevemente.', color: '#e4572e', ingredients: ['Pimienta de salamandra', 'Carbón de draco', 'Alcohol de grano negro'] },
+            { id: 'trepar', name: 'Poción de trepar', rarity: 'Común', effect: 'Facilita trepar superficies difíciles.', color: '#8c6a3d', ingredients: ['Seda de araña gigante', 'Resina de hiedra', 'Uña de gecko triturada'] },
+            { id: 'invisibilidad', name: 'Poción de invisibilidad', rarity: 'Muy rara', effect: 'Vuelve invisible a quien la bebe durante un tiempo.', color: '#9fd0ff', ingredients: ['Cristal de niebla', 'Escama de pez fantasma', 'Sombra embotellada'] },
+            { id: 'heroismo', name: 'Poción de heroísmo', rarity: 'Rara', effect: 'Inspira valor y vigor mágico.', color: '#d6a83d', ingredients: ['Sangre de león dorado', 'Vino de batalla', 'Semilla de roble solar'] },
+            { id: 'velocidad', name: 'Poción de velocidad', rarity: 'Muy rara', effect: 'Acelera cuerpo y reflejos.', color: '#6f58c9', ingredients: ['Polvo de rayo atrapado', 'Pluma de colibrí feérico', 'Mercurio dulce'] },
+            { id: 'respirar-agua', name: 'Poción de respirar bajo el agua', rarity: 'Poco común', effect: 'Permite respirar bajo el agua.', color: '#246fc2', ingredients: ['Alga de cristal', 'Branquia de kuo-toa seca', 'Perla molida'] }
+        ];
+
+        const EMPTY_DATA = { potions: [], dissections: [] };
+        let pantry = loadLocalData();
+        let selectedRecipe = RECIPES[0];
+        let recipeStep = 0;
+        let flaskArmed = false;
+        let selectedImage = '';
+        let remotePantry = null;
+        let syncInProgress = false;
+
+        if (window.supabase) {
+            remotePantry = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
+                auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+            });
+        }
+
+        function loadLocalData() {
+            try {
+                return normalizeData(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)));
+            } catch (error) {
+                return { ...EMPTY_DATA, potions: [], dissections: [] };
+            }
+        }
+
+        function normalizeData(value) {
+            return {
+                potions: Array.isArray(value?.potions) ? value.potions : [],
+                dissections: Array.isArray(value?.dissections) ? value.dissections : []
+            };
+        }
+
+        function saveLocalData() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pantry));
+        }
+
+        function setSyncStatus(text, isError = false) {
+            const el = document.getElementById('sync-status');
+            el.textContent = text;
+            el.classList.toggle('error', isError);
+        }
+
+        async function initSharedPantry() {
+            if (!remotePantry) {
+                setSyncStatus('Guardado local: Supabase no disponible', true);
+                renderAll();
+                return;
+            }
+            setSyncStatus('Sincronizando alacena...');
+            await pullSharedPantry();
+            window.addEventListener('focus', pullSharedPantry);
+            setInterval(pullSharedPantry, 14000);
+        }
+
+        async function pullSharedPantry() {
+            if (!remotePantry || syncInProgress) return;
+            const { data, error } = await remotePantry
+                .from(SUPABASE_CONFIG.table)
+                .select('data')
+                .eq('id', SUPABASE_CONFIG.rowId)
+                .maybeSingle();
+
+            if (error) {
+                setSyncStatus('Error al leer la alacena compartida', true);
+                renderAll();
+                return;
+            }
+
+            if (data?.data) {
+                pantry = normalizeData(data.data);
+                saveLocalData();
+                renderAll();
+                setSyncStatus('Alacena compartida actualizada');
+                return;
+            }
+
+            await pushSharedPantry();
+        }
+
+        async function pushSharedPantry() {
+            saveLocalData();
+            if (!remotePantry) return;
+            syncInProgress = true;
+            setSyncStatus('Guardando alacena para todos...');
+            const { error } = await remotePantry
+                .from(SUPABASE_CONFIG.table)
+                .upsert({ id: SUPABASE_CONFIG.rowId, data: pantry, updated_at: new Date().toISOString() });
+            syncInProgress = false;
+
+            if (error) {
+                setSyncStatus('Error al guardar la alacena', true);
+                return;
+            }
+            setSyncStatus('Alacena guardada para todos');
+        }
+
+        function unlock() {
+            document.getElementById('lock').classList.add('opening');
+            sessionStorage.setItem('lyxandriaPantryUnlocked', 'true');
+            setTimeout(() => {
+                document.getElementById('lock-screen').classList.add('unlocked');
+                document.getElementById('app-shell').classList.remove('is-locked');
+            }, 360);
+        }
+
+        function failUnlock() {
+            const lock = document.getElementById('lock');
+            lock.classList.remove('shake');
+            void lock.offsetWidth;
+            lock.classList.add('shake');
+        }
+
+        function setupLock() {
+            document.getElementById('password-form').addEventListener('submit', event => {
+                event.preventDefault();
+                const input = document.getElementById('password-input');
+                if (input.value === PASSWORD) unlock();
+                else {
+                    input.value = '';
+                    failUnlock();
+                }
+            });
+
+            if (sessionStorage.getItem('lyxandriaPantryUnlocked') === 'true') {
+                document.getElementById('lock-screen').classList.add('unlocked');
+                document.getElementById('app-shell').classList.remove('is-locked');
+            }
+        }
+
+        function setupNavigation() {
+            document.querySelectorAll('.nav-pill').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelectorAll('.nav-pill').forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+                    button.classList.add('active');
+                    document.getElementById(button.dataset.view).classList.add('active');
+                });
+            });
+        }
+
+        function renderRecipes() {
+            const select = document.getElementById('recipe-select');
+            select.innerHTML = RECIPES.map(recipe => `<option value="${recipe.id}">${recipe.name}</option>`).join('');
+            select.addEventListener('change', () => {
+                selectedRecipe = RECIPES.find(recipe => recipe.id === select.value) || RECIPES[0];
+                recipeStep = 0;
+                flaskArmed = false;
+                renderRecipeState();
+            });
+            renderRecipeState();
+        }
+
+        function renderRecipeState() {
+            document.getElementById('recipe-meta').innerHTML = `
+                <div><strong>Rareza:</strong> ${selectedRecipe.rarity}</div>
+                <div><strong>Efecto:</strong> ${selectedRecipe.effect}</div>
+            `;
+
+            const fill = Math.round((recipeStep / selectedRecipe.ingredients.length) * 100);
+            const flask = document.getElementById('flask');
+            flask.style.setProperty('--fill', `${fill}%`);
+            flask.style.setProperty('--brew-color', selectedRecipe.color);
+            flask.classList.toggle('ready', recipeStep === selectedRecipe.ingredients.length);
+
+            document.getElementById('progress-steps').innerHTML = selectedRecipe.ingredients.map((ingredient, index) => `
+                <span class="step-chip ${index < recipeStep ? 'done' : ''}">${index + 1}. ${ingredient}</span>
+            `).join('');
+
+            document.getElementById('ingredient-grid').innerHTML = selectedRecipe.ingredients.map((ingredient, index) => `
+                <button class="ingredient-btn ${index < recipeStep ? 'done' : ''} ${index === recipeStep ? 'next' : ''}" type="button" data-ingredient="${ingredient}">${ingredient}</button>
+            `).join('');
+
+            document.getElementById('flask-hint').textContent = recipeStep === selectedRecipe.ingredients.length
+                ? 'Poción completa. Se ha guardado en el almacén.'
+                : flaskArmed ? 'Elige el ingrediente correcto.' : 'Pulsa el frasco para preparar el siguiente ingrediente.';
+        }
+
+        function completePotion() {
+            pantry.potions.unshift({
+                id: 'potion_' + Date.now(),
+                name: selectedRecipe.name,
+                rarity: selectedRecipe.rarity,
+                effect: selectedRecipe.effect,
+                color: selectedRecipe.color,
+                ingredients: [...selectedRecipe.ingredients],
+                madeAt: new Date().toLocaleString('es-ES')
+            });
+            pushSharedPantry();
+            recipeStep = 0;
+            flaskArmed = false;
+            renderRecipeState();
+            renderPotionStore();
+        }
+
+        function setupCrafting() {
+            document.getElementById('flask').addEventListener('click', () => {
+                flaskArmed = true;
+                renderRecipeState();
+            });
+
+            document.getElementById('ingredient-grid').addEventListener('click', event => {
+                const button = event.target.closest('.ingredient-btn');
+                if (!button || recipeStep >= selectedRecipe.ingredients.length) return;
+                if (!flaskArmed) {
+                    document.getElementById('flask-hint').textContent = 'Primero pulsa el frasco.';
+                    return;
+                }
+
+                const expected = selectedRecipe.ingredients[recipeStep];
+                if (button.dataset.ingredient !== expected) {
+                    const flask = document.getElementById('flask');
+                    flask.classList.remove('shake');
+                    void flask.offsetWidth;
+                    flask.classList.add('shake');
+                    document.getElementById('flask-hint').textContent = 'Ese ingrediente no va todavía.';
+                    flaskArmed = false;
+                    return;
+                }
+
+                recipeStep += 1;
+                flaskArmed = false;
+                if (recipeStep === selectedRecipe.ingredients.length) {
+                    renderRecipeState();
+                    setTimeout(completePotion, 500);
+                    return;
+                }
+                renderRecipeState();
+            });
+
+            document.getElementById('reset-recipe').addEventListener('click', () => {
+                recipeStep = 0;
+                flaskArmed = false;
+                renderRecipeState();
+            });
+        }
+
+        function renderPotionStore() {
+            const list = document.getElementById('potion-list');
+            if (!pantry.potions.length) {
+                list.innerHTML = '<p class="muted">Todavía no hay pociones terminadas.</p>';
+                return;
+            }
+
+            list.innerHTML = pantry.potions.map(potion => `
+                <article class="potion-record" style="--brew-color:${safeColor(potion.color)}">
+                    <h3>${escapeHTML(potion.name)}</h3>
+                    <p><strong>Rareza:</strong> ${escapeHTML(potion.rarity || '')}</p>
+                    <p>${escapeHTML(potion.effect || '')}</p>
+                    <p class="muted">Preparada: ${escapeHTML(potion.madeAt || '')}</p>
+                    <button class="text-btn" type="button" data-remove-potion="${escapeHTML(potion.id)}">Retirar</button>
+                </article>
+            `).join('');
+        }
+
+        function setupPotionStore() {
+            document.getElementById('potion-list').addEventListener('click', event => {
+                const button = event.target.closest('[data-remove-potion]');
+                if (!button) return;
+                pantry.potions = pantry.potions.filter(potion => potion.id !== button.dataset.removePotion);
+                pushSharedPantry();
+                renderPotionStore();
+            });
+        }
+
+        function setupDissectionary() {
+            document.getElementById('creature-image').addEventListener('change', async event => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                selectedImage = await resizeImage(file, 900, 0.78);
+                document.getElementById('image-preview').src = selectedImage;
+            });
+
+            document.getElementById('save-dissection').addEventListener('click', () => {
+                const title = document.getElementById('creature-title').value.trim();
+                const notes = document.getElementById('creature-notes').value.trim();
+                if (!title) return alert('Pon el título de la criatura diseccionada.');
+
+                pantry.dissections.unshift({
+                    id: 'dissection_' + Date.now(),
+                    title,
+                    notes,
+                    image: selectedImage,
+                    createdAt: new Date().toLocaleString('es-ES')
+                });
+
+                document.getElementById('creature-title').value = '';
+                document.getElementById('creature-notes').value = '';
+                document.getElementById('creature-image').value = '';
+                document.getElementById('image-preview').removeAttribute('src');
+                selectedImage = '';
+                pushSharedPantry();
+                renderDissections();
+            });
+
+            document.getElementById('dissection-list').addEventListener('click', event => {
+                const button = event.target.closest('[data-remove-dissection]');
+                if (!button) return;
+                pantry.dissections = pantry.dissections.filter(entry => entry.id !== button.dataset.removeDissection);
+                pushSharedPantry();
+                renderDissections();
+            });
+        }
+
+        function renderDissections() {
+            const list = document.getElementById('dissection-list');
+            if (!pantry.dissections.length) {
+                list.innerHTML = '<p class="muted">El libro aún no tiene criaturas abiertas en canal.</p>';
+                return;
+            }
+
+            list.innerHTML = pantry.dissections.map(entry => `
+                <article class="dissection-entry">
+                    <h3>${escapeHTML(entry.title)}</h3>
+                    ${safeImageSrc(entry.image) ? `<img class="entry-image" src="${safeImageSrc(entry.image)}" alt="${escapeHTML(entry.title)}">` : ''}
+                    <p>${escapeHTML(entry.notes || '')}</p>
+                    <p class="muted">${escapeHTML(entry.createdAt || '')}</p>
+                    <button class="text-btn" type="button" data-remove-dissection="${escapeHTML(entry.id)}">Arrancar página</button>
+                </article>
+            `).join('');
+        }
+
+        function resizeImage(file, maxWidth, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const scale = Math.min(1, maxWidth / img.width);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.round(img.width * scale);
+                        canvas.height = Math.round(img.height * scale);
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = reject;
+                    img.src = reader.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function escapeHTML(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function safeColor(value) {
+            return /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : '#c44d8d';
+        }
+
+        function safeImageSrc(value) {
+            return typeof value === 'string' && value.startsWith('data:image/') ? escapeHTML(value) : '';
+        }
+
+        function renderAll() {
+            renderPotionStore();
+            renderDissections();
+        }
+
+        setupLock();
+        setupNavigation();
+        renderRecipes();
+        setupCrafting();
+        setupPotionStore();
+        setupDissectionary();
+        renderAll();
+        initSharedPantry();
+    </script>
+</body>
+</html>
