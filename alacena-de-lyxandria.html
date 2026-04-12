@@ -573,6 +573,34 @@
             border-left: 5px solid var(--brew-color, var(--rose));
         }
 
+        .quantity-control {
+            display: inline-grid;
+            grid-template-columns: 42px 72px 42px;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0 6px;
+        }
+
+        .quantity-btn,
+        .quantity-input {
+            min-height: 42px;
+            border: 1px solid rgba(194,166,90,0.42);
+            border-radius: 6px;
+            background: rgba(0,0,0,0.24);
+            color: #f7e7bf;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .quantity-btn {
+            cursor: pointer;
+        }
+
+        .quantity-input {
+            width: 72px;
+            font-size: 1rem;
+        }
+
         .muted {
             color: #baa98b;
         }
@@ -836,9 +864,37 @@
 
         function normalizeData(value) {
             return {
-                potions: Array.isArray(value?.potions) ? value.potions : [],
+                potions: normalizePotions(value?.potions),
                 dissections: Array.isArray(value?.dissections) ? value.dissections : []
             };
+        }
+
+        function normalizePotions(value) {
+            if (!Array.isArray(value)) return [];
+            const potionsByType = new Map();
+            value.forEach((potion, index) => {
+                if (!potion?.name) return;
+                const key = potion.recipeId || potion.name;
+                const quantity = getPotionQuantity(potion.quantity);
+                const existing = potionsByType.get(key);
+                if (existing) {
+                    existing.quantity += quantity;
+                    existing.madeAt = existing.madeAt || potion.madeAt || '';
+                    return;
+                }
+                potionsByType.set(key, {
+                    ...potion,
+                    id: potion.id || `potion_legacy_${index}`,
+                    recipeId: potion.recipeId || '',
+                    quantity
+                });
+            });
+            return Array.from(potionsByType.values());
+        }
+
+        function getPotionQuantity(value) {
+            const quantity = Number.parseInt(value, 10);
+            return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
         }
 
         function saveLocalData() {
@@ -988,15 +1044,31 @@
         }
 
         function completePotion() {
-            pantry.potions.unshift({
-                id: 'potion_' + Date.now(),
-                name: selectedRecipe.name,
-                rarity: selectedRecipe.rarity,
-                effect: selectedRecipe.effect,
-                color: selectedRecipe.color,
-                ingredients: [...selectedRecipe.ingredients],
-                madeAt: new Date().toLocaleString('es-ES')
-            });
+            const madeAt = new Date().toLocaleString('es-ES');
+            const existingPotion = pantry.potions.find(potion =>
+                potion.recipeId === selectedRecipe.id || (!potion.recipeId && potion.name === selectedRecipe.name)
+            );
+            if (existingPotion) {
+                existingPotion.recipeId = selectedRecipe.id;
+                existingPotion.quantity = getPotionQuantity(existingPotion.quantity) + 1;
+                existingPotion.rarity = selectedRecipe.rarity;
+                existingPotion.effect = selectedRecipe.effect;
+                existingPotion.color = selectedRecipe.color;
+                existingPotion.ingredients = [...selectedRecipe.ingredients];
+                existingPotion.madeAt = madeAt;
+            } else {
+                pantry.potions.unshift({
+                    id: 'potion_' + Date.now(),
+                    recipeId: selectedRecipe.id,
+                    quantity: 1,
+                    name: selectedRecipe.name,
+                    rarity: selectedRecipe.rarity,
+                    effect: selectedRecipe.effect,
+                    color: selectedRecipe.color,
+                    ingredients: [...selectedRecipe.ingredients],
+                    madeAt
+                });
+            }
             pushSharedPantry();
             recipeStep = 0;
             flaskArmed = false;
@@ -1058,17 +1130,46 @@
                     <h3>${escapeHTML(potion.name)}</h3>
                     <p><strong>Rareza:</strong> ${escapeHTML(potion.rarity || '')}</p>
                     <p><strong>Datos:</strong> ${escapeHTML(potion.effect || '')}</p>
-                    <p class="muted">Preparada: ${escapeHTML(potion.madeAt || '')}</p>
+                    <label class="field-label" for="quantity-${escapeHTML(potion.id)}">Cantidad</label>
+                    <div class="quantity-control">
+                        <button class="quantity-btn" type="button" data-quantity-action="decrease" data-potion-id="${escapeHTML(potion.id)}">-</button>
+                        <input class="quantity-input" id="quantity-${escapeHTML(potion.id)}" type="number" min="1" value="${getPotionQuantity(potion.quantity)}" data-quantity-potion="${escapeHTML(potion.id)}">
+                        <button class="quantity-btn" type="button" data-quantity-action="increase" data-potion-id="${escapeHTML(potion.id)}">+</button>
+                    </div>
+                    <p class="muted">Última preparación: ${escapeHTML(potion.madeAt || '')}</p>
                     <button class="text-btn" type="button" data-remove-potion="${escapeHTML(potion.id)}">Retirar</button>
                 </article>
             `).join('');
         }
 
         function setupPotionStore() {
-            document.getElementById('potion-list').addEventListener('click', event => {
+            const potionList = document.getElementById('potion-list');
+            potionList.addEventListener('click', event => {
+                const quantityButton = event.target.closest('[data-quantity-action]');
+                if (quantityButton) {
+                    const potion = pantry.potions.find(item => item.id === quantityButton.dataset.potionId);
+                    if (!potion) return;
+                    const change = quantityButton.dataset.quantityAction === 'increase' ? 1 : -1;
+                    potion.quantity = Math.max(1, getPotionQuantity(potion.quantity) + change);
+                    pushSharedPantry();
+                    renderPotionStore();
+                    return;
+                }
+
                 const button = event.target.closest('[data-remove-potion]');
                 if (!button) return;
                 pantry.potions = pantry.potions.filter(potion => potion.id !== button.dataset.removePotion);
+                pushSharedPantry();
+                renderPotionStore();
+            });
+
+            potionList.addEventListener('change', event => {
+                const input = event.target.closest('[data-quantity-potion]');
+                if (!input) return;
+                const potion = pantry.potions.find(item => item.id === input.dataset.quantityPotion);
+                if (!potion) return;
+                potion.quantity = getPotionQuantity(input.value);
+                input.value = potion.quantity;
                 pushSharedPantry();
                 renderPotionStore();
             });
