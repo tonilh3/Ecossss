@@ -259,6 +259,14 @@
             background: #1d4f5f;
         }
 
+        .author-lyxandria { background: #c44d8d; }
+        .author-nana-lula { background: #2f8f5b; }
+        .author-zyphira { background: #246fc2; }
+        .author-dain { background: #b8882f; }
+        .author-nima { background: #6f58c9; }
+        .author-faram { background: #8c4f2f; }
+        .author-soryn { background: #2c8f8a; }
+
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
     </style>
@@ -449,6 +457,20 @@
         document.querySelectorAll('select[id$="-author"]').forEach(select => {
             select.value = savedAuthor;
         });
+    }
+
+    function getAuthorClass(author) {
+        const classes = {
+            "Lyxandria": "author-lyxandria",
+            "Dain": "author-dain",
+            "Nima": "author-nima",
+            "Faram": "author-faram",
+            "Zyphira": "author-zyphira",
+            "Soryn": "author-soryn",
+            "Nana Lula": "author-nana-lula"
+        };
+
+        return classes[author] || "";
     }
 
     function isSupabaseConfigured() {
@@ -646,7 +668,7 @@
 
                 if (item.author) {
                     const author = document.createElement('span');
-                    author.className = 'loc-tag author-tag';
+                    author.className = `loc-tag author-tag ${getAuthorClass(item.author)}`.trim();
                     author.textContent = item.author;
                     title.appendChild(author);
                 }
@@ -726,7 +748,8 @@
 		secciones.forEach(sec => {
 			contenidoBody += `<h2 style="color:var(--dnd-gold); font-family:Cinzel; border-bottom:1px solid; margin-top:30px;">${escapeHTML(sec.t)}</h2>`;
 			sec.d.forEach(item => {
-                const author = item.author ? ` <span>${escapeHTML(item.author)}</span>` : '';
+                const authorClass = item.author ? `loc-tag author-tag ${getAuthorClass(item.author)}` : '';
+                const author = item.author ? ` <span class="${authorClass}">${escapeHTML(item.author)}</span>` : '';
 				contenidoBody += `
 				<div class="location-card" style="display:block; margin-bottom:10px;">
 					<div class="loc-title"><strong>${escapeHTML(item.title)}</strong> <span>${escapeHTML(item.date)}</span>${author}</div>
