@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baldur's Gate Explorer</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --card-bg: rgba(15, 23, 42, 0.9);
+            --accent: #ffffff;
+            --text-main: #f8fafc;
+            /* Colores de estado temáticos */
+            --color-ignorada: #ef4444; /* Rojo */
+            --color-activa: #f59e0b;    /* Ámbar/Oro */
+            --color-resuelta: #10b981;  /* Esmeralda */
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100%;
+        }
+
+        #map-wrapper {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            z-index: 1;
+            background: #000;
+        }
+
+        #map-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            transition: opacity 0.4s ease, filter 0.4s ease;
+            opacity: 0.6;
+            filter: saturate(1.2);
+        }
+
+        #map-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.85) 100%);
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        .toggle-map {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 1000;
+            background: var(--card-bg);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 10;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        header, .grid-locations, .location-card, .section-header, .quest-list { pointer-events: auto; }
+
+        .ui-hidden { opacity: 0; pointer-events: none !important; }
+        .map-bright { opacity: 1 !important; filter: saturate(1.2) brightness(1.1) !important; }
+        .overlay-hidden { opacity: 0 !important; }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            background: rgba(15, 23, 42, 0.85);
+            border-radius: 0 0 15px 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        header h1 { margin: 0; font-size: 1.8rem; color: var(--accent); text-transform: uppercase; }
+
+        .section-header { 
+            padding: 10px; 
+            margin: 20px 0 12px 0;
+            color: var(--accent);
+            display: flex; align-items: center; gap: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        /* GRID DE LUGARES */
+        .grid-locations {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        @media (max-width: 700px) { .grid-locations { grid-template-columns: 1fr 1fr; } }
+
+        .location-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            backdrop-filter: blur(8px);
+            transition: 0.2s;
+            min-height: 90px;
+        }
+        .location-card:hover { border-color: var(--accent); background: rgba(255, 255, 255, 0.2); transform: translateY(-3px); }
+        .location-card i { color: var(--accent); font-size: 26px; }
+        .location-name { font-weight: bold; font-size: 0.8rem; color: #fff; }
+
+        /* SECCIÓN DE MISIONES (SIDEQUESTS) */
+        .quest-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .quest-item {
+            background: var(--card-bg);
+            border-left: 4px solid var(--color-ignorada);
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(8px);
+            transition: 0.3s;
+        }
+
+        .quest-info h3 { margin: 0; font-size: 0.95rem; color: #fff; }
+        .quest-info p { margin: 4px 0 0 0; font-size: 0.75rem; color: #cbd5e1; }
+
+        .quest-status-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: 0.3s;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        /* ESTADOS DINÁMICOS */
+        .status-ignorada { border-left-color: var(--color-ignorada); }
+        .status-activa { border-left-color: var(--color-activa); }
+        .status-resuelta { border-left-color: var(--color-resuelta); }
+
+        .btn-ignorada { background: rgba(239, 68, 68, 0.2); color: #fecaca; }
+        .btn-activa { background: rgba(245, 158, 11, 0.2); color: #fde68a; }
+        .btn-resuelta { background: rgba(16, 185, 129, 0.2); color: #a7f3d0; }
+
+        #detail-view {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: #0a0f1e;
+            padding: 25px;
+            border-top: 4px solid var(--accent);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1100;
+        }
+        #detail-view.active { transform: translateY(0); }
+        .close-btn { background: var(--accent); color: #000; padding: 5px 12px; border-radius: 4px; font-weight: bold; float: right; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="map-wrapper">
+        <img src="cap.2.0.--baldur-gate.jpg" id="map-image">
+    </div>
+
+    <div id="map-overlay"></div>
+
+    <button class="toggle-map" onclick="toggleUI()">
+        <span class="material-icons" id="map-icon">visibility_off</span>
+    </button>
+
+    <div class="app-container" id="main-ui">
+        <header>
+            <p style="padding-top: 20px; color: #cbd5e1; font-size: 0.7rem; letter-spacing: 2px; margin:0;">ATLAS URBANO</p>
+            <h1>Baldur's Gate - La Ciudad de Balduran</h1>
+        </header>
+
+        <div class="section-header">
+             <span class="material-icons">explore</span> Puntos de Inter&eacute;s
+        </div>
+
+        <div class="grid-locations">
+            <div class="location-card" onclick="showDetail('B1. Muelles Bah&iacute;a Comercial', 'El coraz&oacute;n econ&oacute;mico de la ciudad. Un hervidero de marineros, mercaderes y contrabando.')">
+                <i class="material-icons">anchor</i>
+                <span class="location-name">B1. Bah&iacute;a Comercial</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B2. Fortificaci&oacute;n Naval de Balduran', 'Basti&oacute;n militar que protege la entrada por el r&iacute;o Chionthar. Sede de la guardia naval.')">
+                <i class="material-icons">shield</i>
+                <span class="location-name">B2. Fuerte Balduran</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B3. Puertas Exteriores', 'El l&iacute;mite entre la seguridad de los muros y el caos del extrarradio.')">
+                <i class="material-icons">sensor_door</i>
+                <span class="location-name">B3. Puertas Exteriores</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B4. Taberna la Canci&oacute;n &Eacute;lfica', 'Famosa por el espectro de una elfa que canta melod&iacute;as melanc&oacute;licas.')">
+                <i class="material-icons">music_note</i>
+                <span class="location-name">B4. Canci&oacute;n &Eacute;lfica</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B5. Oficina de Contabilidad', 'La sede de las finanzas de la ciudad. Registros, impuestos y contratos.')">
+                <i class="material-icons">history_edu</i>
+                <span class="location-name">B5. Contabilidad</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B6. Templo de la Casa de la Reina del Agua', 'Templo dedicado a Umberlee. Los marineros ofrecen tributos antes de zarpar.')">
+                <i class="material-icons">waves</i>
+                <span class="location-name">B6. Templo de Umberlee</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B7. Gran Casa de las Maravillas', 'Templo-museo dedicado a Gond. Albergue de inventos ingeniosos.')">
+                <i class="material-icons">settings_suggest</i>
+                <span class="location-name">B7. Casa Maravillas</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B8. El Sal&oacute;n Alto', 'Donde se re&uacute;ne el Consejo de los Cuatro. Centro pol&iacute;tico.')">
+                <i class="material-icons">gavel</i>
+                <span class="location-name">B8. El Sal&oacute;n Alto</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B9. Posada Tres Barriles Viejos', 'Una posada tranquila, refugio de la nobleza local.')">
+                <i class="material-icons">local_bar</i>
+                <span class="location-name">B9. Tres Barriles Viejos</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B10. Torre Arcana de Ramazith', 'Hogar de poderosos magos y estudios sobre lo desconocido.')">
+                <i class="material-icons">auto_stories</i>
+                <span class="location-name">B10. Torre de Ramazith</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B11. Jardines El Vasto', 'Un respiro de aire fresco y verde en medio de la ciudad.')">
+                <i class="material-icons">local_florist</i>
+                <span class="location-name">B11. Jardines El Vasto</span>
+            </div>
+            <div class="location-card" onclick="showDetail('B12. Taberna la Sirena Sonrojada', 'Lugar de mala muerte y juegos de azar. Bajos fondos.')">
+                <i class="material-icons">sailing</i>
+                <span class="location-name">B12. Sirena Sonrojada</span>
+            </div>
+        </div>
+
+        <div class="section-header">
+             <span class="material-icons">assignment</span> Cr&oacute;nicas de la Urbe
+        </div>
+
+        <div class="quest-list">
+            <div class="quest-item status-ignorada" id="q1">
+                <div class="quest-info">
+                    <h3>El Gran Duque Ravengard</h3>
+                    <p>Contactar con el l&iacute;der del Pu&ntilde;o Ardiente en el Sal&oacute;n Alto.</p>
+                </div>
+                <div class="quest-status-btn btn-ignorada" onclick="toggleQuest('q1', this)">Desconocida</div>
+            </div>
+
+            <div class="quest-item status-ignorada" id="q2">
+                <div class="quest-info">
+                    <h3>Sacerdotisa Lureene Farfog</h3>
+                    <p>Investigar una visi&oacute;n, una sombr&iacute;a advertencia de la Diosa en el Templo de Umberlee.</p>
+                </div>
+                <div class="quest-status-btn btn-ignorada" onclick="toggleUI; toggleQuest('q2', this)">Desconocida</div>
+            </div>
+
+            <div class="quest-item status-ignorada" id="q3">
+                <div class="quest-info">
+                    <h3>Hama la Dr&iacute;ada</h3>
+                    <p>Petici&oacute;n del Enclave Esmeralda en los Jardines El Vasto.</p>
+                </div>
+                <div class="quest-status-btn btn-ignorada" onclick="toggleQuest('q3', this)">Desconocida</div>
+            </div>
+        </div>
+        
+        <div style="height: 300px;"></div>
+    </div>
+
+    <div id="detail-view">
+        <div class="close-btn" onclick="closeDetail()">CERRAR</div>
+        <h2 id="detail-title" style="margin-top:0; color:var(--accent)"></h2>
+        <p id="detail-text" style="color: #cbd5e1;"></p>
+    </div>
+
+    <script>
+        function toggleUI() {
+            const ui = document.getElementById('main-ui');
+            const map = document.getElementById('map-image');
+            const overlay = document.getElementById('map-overlay');
+            const icon = document.getElementById('map-icon');
+            
+            ui.classList.toggle('ui-hidden');
+            map.classList.toggle('map-bright');
+            overlay.classList.toggle('overlay-hidden');
+            
+            icon.innerText = ui.classList.contains('ui-hidden') ? 'visibility' : 'visibility_off';
+        }
+
+        function showDetail(title, text) {
+            document.getElementById('detail-title').innerHTML = title;
+            document.getElementById('detail-text').innerHTML = text;
+            document.getElementById('detail-view').classList.add('active');
+        }
+
+        function closeDetail() {
+            document.getElementById('detail-view').classList.remove('active');
+        }
+
+        // --- FUNCIÓN DE TOGGLE CON GUARDADO ---
+		function toggleQuest(questId, btn) {
+			const questItem = document.getElementById(questId);
+			const states = ['ignorada', 'activa', 'resuelta'];
+			const labels = ['Desconocida', 'Activa', 'Resuelta']; // Ajustado para que coincida con tu HTML
+			
+			let currentState = '';
+			states.forEach(s => { if(questItem.classList.contains('status-' + s)) currentState = s; });
+			
+			let nextIndex = (states.indexOf(currentState) + 1) % states.length;
+			let nextState = states[nextIndex];
+			let nextLabel = labels[nextIndex];
+
+			states.forEach(s => {
+				questItem.classList.remove('status-' + s);
+				btn.classList.remove('btn-' + s);
+			});
+
+			questItem.classList.add('status-' + nextState);
+			btn.classList.add('btn-' + nextState);
+			btn.innerText = nextLabel;
+
+			// GUARDA EL ESTADO: Esto es lo único nuevo
+			localStorage.setItem(questId, nextState);
+		}
+
+		// --- FUNCIÓN PARA CARGAR LO GUARDADO AL ABRIR LA WEB ---
+		window.addEventListener('DOMContentLoaded', () => {
+			const states = ['ignorada', 'activa', 'resuelta'];
+			const labels = { 'ignorada': 'Desconocida', 'activa': 'Activa', 'resuelta': 'Resuelta' };
+
+			// Busca todas las misiones y mira si hay algo guardado para ellas
+			document.querySelectorAll('.quest-item').forEach(item => {
+				const savedState = localStorage.getItem(item.id);
+				if (savedState) {
+					const btn = item.querySelector('.quest-status-btn');
+					
+					// Limpia el estado por defecto del HTML
+					states.forEach(s => {
+						item.classList.remove('status-' + s);
+						btn.classList.remove('btn-' + s);
+					});
+
+					// Aplica el estado que guardamos
+					item.classList.add('status-' + savedState);
+					btn.classList.add('btn-' + savedState);
+					btn.innerText = labels[savedState];
+				}
+			});
+		});
+    </script>
+</body>
+</html>

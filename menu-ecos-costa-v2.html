@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecos en la Costa - Hub de Campaña</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --dnd-red: #8c1616;
+            --dnd-gold: #c2a65a;
+            --bg-dark: #1a1a1a;
+            --panel-bg: #111111;
+        }
+
+        /* Forzamos que el cuerpo ocupe el 100% sin scroll */
+        body, html {
+            margin: 0; padding: 0;
+            height: 100vh;
+            width: 100vw;
+            background-color: #000;
+            font-family: 'Quicksand', sans-serif;
+            color: #eee;
+            display: flex; 
+            overflow: hidden;
+        }
+
+        /* BARRA LATERAL */
+        #sidebar {
+            width: 300px;
+            min-width: 300px;
+            height: 100vh;
+            background: var(--panel-bg);
+            border-right: 2px solid var(--dnd-gold);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Ocultación real desplazando el ancho */
+        #sidebar.hidden {
+            margin-left: -300px;
+        }
+
+        .header-hub {
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--dnd-gold);
+        }
+
+        .header-hub h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.4rem;
+            color: var(--dnd-gold);
+            margin: 0;
+        }
+
+        .menu-section { 
+            padding: 20px; 
+            flex-grow: 1; 
+            overflow-y: auto; 
+        }
+
+        .section-title {
+            font-family: 'Cinzel', serif;
+            font-size: 0.8rem;
+            color: var(--dnd-red);
+            margin: 20px 0 10px 5px;
+            display: block;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: #ccc;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            transition: 0.3s;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .nav-link:hover {
+            background: rgba(194, 166, 90, 0.1);
+            color: var(--dnd-gold);
+        }
+		
+		/* Estado cuando el ítem está seleccionado */
+		.nav-link.active {
+			background: rgba(194, 166, 90, 0.2); /* Fondo un poco más intenso que el hover */
+			color: var(--dnd-gold);
+			border-left: 4px solid var(--dnd-gold); /* Una barra lateral para resaltarlo */
+		}
+
+        .nav-link i { margin-right: 12px; color: var(--dnd-gold); }
+
+        /* ÁREA DE CONTENIDO DINÁMICA */
+        #content-area {
+            flex: 1; /* Ocupa TODO el espacio sobrante */
+            height: 100vh;
+            position: relative;
+            background: #000;
+            display: flex; /* Para que el iframe se estire dentro */
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            flex-grow: 1;
+        }
+
+        /* BOTÓN FLOTANTE */
+        .tv-toggle {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            z-index: 1001;
+            background: var(--dnd-red);
+            color: white;
+            border: 2px solid var(--dnd-gold);
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <button class="tv-toggle" onclick="toggleMenu()">
+        <i class="material-icons" id="menu-icon">visibility_off</i>
+    </button>
+
+    <div id="sidebar">
+        <div class="header-hub">
+            <h1>Ecos en la Costa</h1>
+            <div style="color: var(--dnd-gold); font-size: 0.7rem; margin-top: 5px;">HUB DE INVESTIGACIÓN</div>
+        </div>
+
+        <div class="menu-section">
+            <span class="section-title" style="color: #fff;">General</span>
+            <a class="nav-link" onclick="loadPage('mapa-hex-mejorado-gemini-v5-legendary-edition.html', this)">
+                <i class="material-icons">explore</i> Mapa de Viaje
+            </a>
+            <a class="nav-link" onclick="loadPage('atlas-de-la-costa-de-la-espada-v2-zoom.html', this)">
+                <i class="material-icons">map</i> Atlas Regional
+            </a>
+            <a class="nav-link" onclick="loadPage('bitacora-de-ecos-en-la-costa-v2-zoom-export.html', this)">
+                <i class="material-icons">history_edu</i> Bitácora
+            </a>
+			<a class="nav-link" onclick="loadPage('tienda-manual-del-jugador-2014.html', this)">
+                <i class="material-icons">paid</i> Bazar del Aventurero
+            </a>
+			<a class="nav-link" onclick="loadPage('astillero-de-gimlet.html', this)">
+                <i class="material-icons">paid</i> Astilleros Navales
+            </a>
+			<a class="nav-link" onclick="loadPage('nivel-de-corrupcion.html', this)">
+                <i class="material-icons">shield</i> La Marca de Zyphira
+            </a>
+			<a class="nav-link" onclick="loadPage('leyendas-de-faerun---el-rincon-de-salty.html', this)">
+                <i class="material-icons">menu_book</i> Leyendas de Faerûn
+            </a>
+
+            <span class="section-title" style="color: #fff;">Localizaciones</span>
+            <a class="nav-link" onclick="loadPage('mapa-local-neverwinter-v2.html', this)">
+                <i class="material-icons">castle</i> Neverwinter
+            </a>
+            <a class="nav-link" onclick="loadPage('mapa-local-waterdeep-v2.html', this)">
+                <i class="material-icons">castle</i> Waterdeep <!-- fort -->
+            </a>
+            <a class="nav-link" onclick="loadPage('mapa-local-baldursgate-v2.html', this)">
+                <i class="material-icons">castle</i> Baldur's Gate
+            </a>
+            <a class="nav-link" onclick="loadPage('mapa-local-gundbarg-v2.html', this)">
+                <i class="material-icons">anchor</i> Gundbarg
+            </a>
+			<!--
+            <a class="nav-link" onclick="loadPage('mapa-local-fiskrbak-v2.html', this)">
+                <i class="material-icons">arrow_forward</i> Fiskrbak
+            </a>
+			-->
+        </div>
+    </div>
+
+    <div id="content-area">
+        <iframe src="atlas-de-la-costa-de-la-espada-v2-zoom.html" id="main-frame"></iframe>
+    </div>
+
+    <script>
+		function loadPage(url, element) {
+			const frame = document.getElementById('main-frame');
+			frame.src = url;
+
+			// 1. Quitar la clase 'active' de todos los enlaces
+			const links = document.querySelectorAll('.nav-link');
+			links.forEach(link => link.classList.remove('active'));
+
+			// 2. Añadir la clase 'active' al elemento que hemos pulsado
+			if (element) {
+				element.classList.add('active');
+			}
+		}
+		
+		// Para que el primer ítem aparezca marcado al cargar la página
+		window.onload = function() {
+			// Buscamos el enlace del Atlas (que es el que carga por defecto) y lo marcamos
+			const initialLink = Array.from(document.querySelectorAll('.nav-link'))
+									 .find(a => a.innerText.includes('Atlas'));
+			if (initialLink) initialLink.classList.add('active');
+		};
+
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('menu-icon');
+            sidebar.classList.toggle('hidden');
+            icon.innerText = sidebar.classList.contains('hidden') ? 'visibility' : 'visibility_off';
+        }
+    </script>
+</body>
+</html>

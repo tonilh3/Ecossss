@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Manager - Sword Coast v5.0 Legendary Edition</title>
+    <style>
+        body { margin: 0; padding: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #e0e0e0; overflow: hidden; }
+        
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: 320px;
+            background: #2a2a2a;
+            padding: 20px;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            overflow-y: auto;
+            border-right: 1px solid #444;
+            flex-shrink: 0;
+        }
+
+        h2 { margin-top: 0; color: #d4af37; font-family: 'Georgia', serif; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        h3 { font-size: 0.9em; text-transform: uppercase; color: #888; margin-bottom: 5px; margin-top: 0; }
+        
+        label { display: block; margin-bottom: 4px; font-size: 0.85em; color: #ccc; }
+        select, input[type="range"] { width: 100%; background: #333; color: white; border: 1px solid #555; padding: 5px; border-radius: 4px; margin-bottom: 10px; }
+        select:focus { outline: none; border-color: #d4af37; }
+        
+        .val-display { float: right; color: #d4af37; font-size: 0.8em; font-weight: bold; }
+        .control-group { background: #333; padding: 12px; border-radius: 6px; border: 1px solid #444; }
+        
+        button {
+            background: #d4af37; border: none; padding: 10px; color: #1a1a1a; font-weight: bold; cursor: pointer; border-radius: 4px; width: 100%; transition: 0.2s;
+        }
+        button:hover { background: #ffc107; transform: translateY(-1px); }
+        
+        /* --- RESULT PANEL --- */
+        #output {
+            margin-top: 10px;
+            padding: 15px;
+            background: #151515;
+            border: 1px solid #d4af37;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .big-stat { font-size: 1.8em; color: #d4af37; font-weight: bold; display: block; font-family: 'Georgia', serif; }
+        .sub-stat { font-size: 1.1em; color: #fff; display: block; margin-top: 5px; }
+        .detail-stat { font-size: 0.85em; color: #888; margin-top: 5px; display: block; font-style: italic; }
+
+        /* --- CANVAS & MAGIC OVERLAYS --- */
+        #canvas-container {
+            flex-grow: 1;
+            overflow: auto;
+            position: relative; /* Necesario para posicionar las estrellas */
+            background: #121212;
+            cursor: crosshair;
+        }
+        canvas { 
+            display: block; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* --- EFECTOS MÁGICOS CSS3 --- */
+        .hex-overlay {
+            position: absolute;
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .hex-overlay.active { display: flex; }
+
+        /* --- EFECTOS MÁGICOS MEJORADOS --- */
+        .particle {
+            position: absolute; opacity: 0;
+            animation: magicEffect 2s infinite ease-in-out;
+        }
+
+        /* Variaciones de forma */
+        .particle.star { width: 4px; height: 4px; background: #ffd700; border-radius: 50%; box-shadow: 0 0 8px #ffd700, 0 0 12px #fff; }
+        .particle.droplet { width: 5px; height: 8px; background: #4fc3f7; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; box-shadow: 0 0 5px #4fc3f7; }
+        .particle.bubble { width: 7px; height: 7px; background: transparent; border: 1.5px solid #8a2be2; border-radius: 50%; box-shadow: inset 0 0 3px #8a2be2; }
+
+        @keyframes magicEffect {
+            0% { opacity: 0; transform: scale(0.2) translate(0,0); }
+            50% { opacity: 1; transform: scale(1.1) translate(var(--tx), var(--ty)); }
+            100% { opacity: 0; transform: scale(0.2) translate(var(--tx), var(--ty)); }
+        }
+        
+        .file-upload { 
+            border: 2px dashed #555; padding: 15px; text-align: center; cursor: pointer; margin-bottom: 10px; color: #888; transition: 0.3s;
+        }
+        .file-upload:hover { border-color: #d4af37; color: #d4af37; background: rgba(212, 175, 55, 0.05); }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>⚔️ Sword Coast Nav</h2>
+        
+        <div class="file-upload" onclick="document.getElementById('imgLoader').click()">
+            🗺️ Cargar Mapa (Imagen)
+            <input type="file" id="imgLoader" style="display:none" accept="image/*">
+        </div>
+
+        <div class="control-group">
+            <h3>⚙️ Calibración de Rejilla</h3>
+            <label>Tamaño Hex <span id="val-size" class="val-display">25</span></label>
+            <input type="range" id="hexSize" min="10" max="100" step="0.5" value="25">
+            
+            <label>Desplazamiento X <span id="val-x" class="val-display">0</span></label>
+            <input type="range" id="offsetX" min="0" max="100" value="0">
+            
+            <label>Desplazamiento Y <span id="val-y" class="val-display">0</span></label>
+            <input type="range" id="offsetY" min="0" max="100" value="0">
+            
+            <label style="margin-top:5px; cursor:pointer;">
+                <input type="checkbox" id="showGrid" checked> Mostrar Guía
+            </label>
+        </div>
+
+        <div class="control-group">
+            <h3>🐎 Configuración de Viaje</h3>
+            
+            <label>Medio de Transporte</label>
+            <select id="transportMode" onchange="updateTravelOptions()">
+                <optgroup label="Tierra">
+                    <option value="foot">A Pie / Carro</option>
+                    <option value="horse">Montura (Caballo, Trineo, etc.)</option>
+                </optgroup>
+                <optgroup label="Mar (Vela)">
+                    <option value="galleon">Galleon / Longship (3 mph)</option>
+                    <option value="sail">Caravel / Coaster / Cog (2 mph)</option>
+                </optgroup>
+                <optgroup label="Mar (Remos)">
+                    <option value="rowboat">Bote de Remos / Barcaza (1.5 mph)</option>
+                </optgroup>
+                <optgroup label="✨ Naves Especiales">
+                    <option value="calamar">El Calamar Volador (4 mph)</option>
+                    <option value="marpenoth">La Marpenoth Escarlata (Submarino)</option>
+                    <option value="alondra">Alondra Escurridiza (Aeronave)</option>
+                </optgroup>
+            </select>
+
+            <div id="landOptions">
+                <label>Terreno</label>
+                <select id="terrainType" onchange="calculate()">
+                    <option value="normal">Camino / Pradera (Normal)</option>
+                    <option value="difficult">Bosque / Montaña (Difícil)</option>
+                </select>
+
+                <label>Ritmo de Marcha</label>
+                <select id="paceType" onchange="calculate()">
+                    <option value="normal">Normal</option>
+                    <option value="fast">Rápido (+Velocidad, -Pasiva)</option>
+                    <option value="slow">Lento (Sigilo)</option>
+                </select>
+            </div>
+
+            <div id="seaOptions" class="hidden">
+                <label>Condiciones Climáticas</label>
+                <select id="weatherType" onchange="calculate()">
+                    <option value="normal">Normal</option>
+                    <option value="calm">Sin Viento (Calma)</option>
+                    <option value="strong">Viento Fuerte (Veleros)</option>
+                    <option value="storm">Tormenta (Viento + Olas)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="output">
+            <span style="font-size:0.8em; color:#888; text-transform:uppercase;">Distancia</span>
+            <span id="dist-hex" class="big-stat">0 Hex</span>
+            <span id="dist-miles" class="detail-stat">(0 millas)</span>
+            
+            <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
+            
+            <span style="font-size:0.8em; color:#888; text-transform:uppercase;">Tiempo de Viaje</span>
+            <span id="travel-days" class="sub-stat">0 Días</span>
+            <span id="travel-note" class="detail-stat" style="color:#d4af37;"></span>
+        </div>
+        
+        <button onclick="resetSelection()">Limpiar Selección</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mapCanvas"></canvas>
+        <div id="start-overlay" class="hex-overlay"></div>
+        <div id="end-overlay" class="hex-overlay"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const HEX_MILES = 24; 
+
+        let img = new Image();
+        let imgLoaded = false;
+        let hexSize = 25;
+        let offX = 0;
+        let offY = 0;
+        
+        let startHex = null;
+        let endHex = null;
+        let hoverHex = null;
+        let currentDistance = 0;
+
+        window.onload = function() {
+            updateTravelOptions();
+            // Inicializar 15 estrellas por cada punto seleccionado
+            initSparkles('start-overlay', 15);
+            initSparkles('end-overlay', 15);
+			
+			// --- CAMBIO MÍNIMO AQUÍ ---
+			img.onload = function() {
+				imgLoaded = true;
+				canvas.width = img.width;
+				canvas.height = img.height;
+				draw();
+			};
+			img.src = "faerun-theswordcoast-dmsmap.jpg";
+			// ---------------------------
+        };
+
+        // --- FUNCIONES MÁGICAS ---
+
+        function getStyleConfig() {
+            const mode = document.getElementById('transportMode').value;
+            const configs = {
+                'calamar':   { color: "#4fc3f7", pClass: "droplet", special: true },
+                'marpenoth':  { color: "#8a2be2", pClass: "bubble", special: true }, // color drow
+                'alondra':    { color: "#ffd700", pClass: "star", special: true }
+            };
+            return configs[mode] || { color: null, pClass: null, special: false };
+        }
+		
+		function isSpecialMode() {
+			return getStyleConfig().special;
+		}
+
+        function initSparkles(overlayId, count) {
+            const overlay = document.getElementById(overlayId);
+            for(let i=0; i<count; i++) {
+                let star = document.createElement('div');
+                star.className = 'particle';
+                let tx = (Math.random() - 0.5) * 60; 
+                let ty = (Math.random() - 0.5) * 60;
+                star.style.setProperty('--tx', `${tx}px`);
+                star.style.setProperty('--ty', `${ty}px`);
+                star.style.left = '0px';
+                star.style.top = '0px';
+                star.style.animationDelay = (Math.random() * 2) + 's';
+                overlay.appendChild(star);
+            }
+        }
+
+        function updateOverlayPosition(hex, overlayId) {
+            const overlay = document.getElementById(overlayId);
+            if (!hex || !isSpecialMode() || !imgLoaded) {
+                overlay.classList.remove('active');
+                return;
+            }
+            const pixel = hexToPixel(hex.q, hex.r);
+            overlay.style.left = pixel.x + 'px';
+            overlay.style.top = pixel.y + 'px';
+            overlay.classList.add('active');
+        }
+
+        // --- LÓGICA DE VIAJE ---
+        function calculate() {
+            if (currentDistance === 0) {
+                updateUI(0, 0, "");
+                return;
+            }
+
+            const mode = document.getElementById('transportMode').value;
+            const terrain = document.getElementById('terrainType').value;
+            const pace = document.getElementById('paceType').value;
+            const weather = document.getElementById('weatherType').value;
+
+            let hexesPerDay = 0;
+            let note = "";
+
+            if (['foot', 'horse'].includes(mode)) {
+                let baseSpeed = (mode === 'foot') ? 1.0 : 1.5;
+                if (terrain === 'difficult') baseSpeed *= 0.5;
+
+                if (pace === 'fast') {
+                    hexesPerDay = baseSpeed + 0.5;
+                    note = "Marcha rápida (-5 Pasiva)";
+                } else if (pace === 'slow') {
+                    hexesPerDay = baseSpeed * 0.5;
+                    note = "En Sigilo (Velocidad reducida)";
+                } else {
+                    hexesPerDay = baseSpeed;
+                }
+                if (terrain === 'difficult' && pace === 'slow') note = "Terreno Difícil + Sigilo (Muy lento)";
+                else if (terrain === 'difficult') note = "Terreno Difícil";
+
+            } else {
+                let mph = 0;
+                let hours = 24; 
+                let isSail = false;
+                let ignoreWeather = false;
+
+                switch(mode) {
+                    case 'galleon': mph = 3; isSail = true; break;
+                    case 'sail': mph = 2; isSail = true; break;
+                    case 'rowboat': mph = 1.5; hours = 8; isSail = false; break;
+                    case 'calamar': mph = 4; isSail = true; note = "Impulso Elemental (Velocidad x2)"; break;
+                    case 'marpenoth': mph = 2; ignoreWeather = true; note = "Submarino: Evita peligros y clima"; break;
+                    case 'alondra': mph = 2; isSail = true; note = "Aeronave: Evita terreno y peligros"; break;
+                }
+
+                let baseHexes = (mph * hours) / HEX_MILES;
+
+                if (ignoreWeather) {
+                    hexesPerDay = baseHexes;
+                } else if (weather === 'calm' && isSail) {
+                    hexesPerDay = 1; 
+                    note = "Remando (Sin viento)";
+                } else if ((weather === 'strong' || weather === 'storm') && isSail) {
+                    hexesPerDay = baseHexes + 1;
+                    let weatherNote = weather === 'storm' ? "¡Tormenta! (Desventaja navegación)" : "Viento Fuerte (Hexágono adicional en veleros)";
+                    note = note ? `${note} + ${weatherNote}` : weatherNote;
+                } else {
+                    hexesPerDay = baseHexes;
+                }
+            }
+
+            if (hexesPerDay <= 0) hexesPerDay = 0.1; 
+            const days = currentDistance / hexesPerDay;
+            updateUI(days, currentDistance * HEX_MILES, note);
+        }
+
+        function updateUI(days, miles, note) {
+			// Lógica de redondeo: 5.3 -> 5 | 5.7 -> 5.5 | 6.1 -> 6
+			let roundedDays = Math.floor(days * 2) / 2;
+
+			document.getElementById('dist-hex').innerText = currentDistance + " Hex";
+			document.getElementById('dist-miles').innerText = `(${miles.toFixed(0)} millas)`;
+			
+			// Formatear el texto: si es entero, quitar el .0
+			let daysDisplay = Number.isInteger(roundedDays) ? roundedDays.toString() : roundedDays.toFixed(1);
+			
+			document.getElementById('travel-days').innerText = daysDisplay + " Días";
+			document.getElementById('travel-note').innerText = note;
+		}
+
+        function updateTravelOptions() {
+			const mode = document.getElementById('transportMode').value;
+			const landOpts = document.getElementById('landOptions');
+			const seaOpts = document.getElementById('seaOptions');
+
+			if (['foot', 'horse'].includes(mode)) {
+				landOpts.classList.remove('hidden');
+				seaOpts.classList.add('hidden');
+			} else {
+				landOpts.classList.add('hidden');
+				seaOpts.classList.remove('hidden');
+			}
+
+			// Actualizar aspecto de las partículas
+			const style = getStyleConfig();
+			document.querySelectorAll('.particle').forEach(p => {
+				p.classList.remove('star', 'droplet', 'bubble');
+				if (style.special) p.classList.add(style.pClass);
+			});
+
+			calculate();
+			draw();
+		}
+
+        // --- CARGA DE IMAGEN ---
+        document.getElementById('imgLoader').addEventListener('change', function(e){
+            const reader = new FileReader();
+            reader.onload = function(event){
+                img.onload = function(){
+                    imgLoaded = true;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    draw();
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(e.target.files[0]);
+        });
+
+        // --- MATEMÁTICAS HEX ---
+        function pixelToHex(x, y) {
+            const px = x - offX; const py = y - offY;
+            const q = (2./3 * px) / hexSize;
+            const r = (-1./3 * px + Math.sqrt(3)/3 * py) / hexSize;
+            return hexRound(q, r);
+        }
+
+        function hexToPixel(q, r) {
+            const x = hexSize * (3./2 * q) + offX;
+            const y = hexSize * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r) + offY;
+            return {x, y};
+        }
+
+        function hexRound(q, r) {
+            let x = q; let z = r; let y = -x - z;
+            let rx = Math.round(x); let ry = Math.round(y); let rz = Math.round(z);
+            const x_diff = Math.abs(rx - x);
+            const y_diff = Math.abs(ry - y);
+            const z_diff = Math.abs(rz - z);
+            if (x_diff > y_diff && x_diff > z_diff) rx = -ry - rz;
+            else if (y_diff > z_diff) ry = -rx - rz;
+            else rz = -rx - ry;
+            return {q: rx, r: rz};
+        }
+
+        function getDistance(h1, h2) {
+            return Math.max(Math.abs(h1.q - h2.q), Math.abs((-h1.q-h1.r) - (-h2.q-h2.r)), Math.abs(h1.r - h2.r));
+        }
+
+        // --- DIBUJO ---
+        function draw() {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			if (imgLoaded) ctx.drawImage(img, 0, 0);
+
+			if (document.getElementById('showGrid').checked && imgLoaded && hoverHex) drawGridAround(hoverHex, 8); 
+
+			// 1. Obtener estilo actual
+			const style = getStyleConfig();
+			const startColor = style.special ? style.color + "B3" : "rgba(0, 255, 100, 0.6)";
+			const endColor   = style.special ? style.color + "B3" : "rgba(255, 50, 50, 0.6)";
+
+			// 2. Dibujar hexágonos de selección
+			if (startHex) drawHex(startHex, startColor, 3, true);
+			if (endHex) drawHex(endHex, endColor, 3, true);
+
+			// 3. Actualizar overlays de partículas
+			updateOverlayPosition(startHex, 'start-overlay');
+			updateOverlayPosition(endHex, 'end-overlay');
+
+			// 4. Dibujar línea de trayectoria
+			if (startHex && endHex) {
+				const p1 = hexToPixel(startHex.q, startHex.r);
+				const p2 = hexToPixel(endHex.q, endHex.r);
+				ctx.beginPath();
+				ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+				ctx.strokeStyle = style.special ? style.color : "#d4af37";
+				ctx.lineWidth = 4;
+				ctx.setLineDash([10, 5]); ctx.stroke(); ctx.setLineDash([]);
+			}
+
+			// 5. Dibujar cursor (hover)
+			if (hoverHex && imgLoaded) drawHex(hoverHex, "rgba(255,255,255,0.8)", 2);
+		}
+
+        function drawHex(hex, color, width = 1, fill = false) {
+            const center = hexToPixel(hex.q, hex.r);
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle_rad = Math.PI / 180 * (60 * i);
+                const vx = center.x + hexSize * Math.cos(angle_rad);
+                const vy = center.y + hexSize * Math.sin(angle_rad);
+                if (i === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+            if(fill) { ctx.fillStyle = color; ctx.fill(); }
+        }
+
+        function drawGridAround(centerHex, radius) {
+            for (let q = centerHex.q - radius; q <= centerHex.q + radius; q++) {
+                for (let r = centerHex.r - radius; r <= centerHex.r + radius; r++) {
+                    if (Math.abs(q - centerHex.q) <= radius && Math.abs(r - centerHex.r) <= radius) {
+                        drawHex({q, r}, "rgba(212, 175, 55, 0.15)", 1);
+                    }
+                }
+            }
+        }
+
+        // --- EVENTOS ---
+        canvas.addEventListener('mousemove', function(e) {
+            if(!imgLoaded) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            hoverHex = pixelToHex(x, y);
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', function(e) {
+            if (!imgLoaded) return;
+            if (!startHex) { startHex = hoverHex; } 
+            else if (!endHex) { 
+                endHex = hoverHex; 
+                currentDistance = getDistance(startHex, endHex);
+                calculate(); 
+            } else { 
+                startHex = hoverHex; endHex = null; currentDistance = 0; calculate();
+            }
+            draw();
+        });
+
+        document.getElementById('hexSize').addEventListener('input', (e) => {
+            hexSize = parseFloat(e.target.value);
+            document.getElementById('val-size').innerText = hexSize;
+            draw();
+        });
+        document.getElementById('offsetX').addEventListener('input', (e) => {
+            offX = parseFloat(e.target.value);
+            document.getElementById('val-x').innerText = offX;
+            draw();
+        });
+        document.getElementById('offsetY').addEventListener('input', (e) => {
+            offY = parseFloat(e.target.value);
+            document.getElementById('val-y').innerText = offY;
+            draw();
+        });
+        document.getElementById('showGrid').addEventListener('change', draw);
+
+        function resetSelection() {
+            startHex = null; endHex = null; currentDistance = 0;
+            calculate(); draw();
+        }
+    </script>
+</body>
+</html>

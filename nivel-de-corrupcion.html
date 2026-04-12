@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Vínculo de Zyphira</title>
+    <style>
+        :root {
+            --infernal-red: #ff3300;
+            --divine-blue: #00d4ff;
+            --bg-dark: #0a0a0a;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            font-family: 'Cinzel', serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+        }
+
+        #ambient-glow {
+            position: absolute; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1; opacity: 0.4;
+            transition: background 3s ease;
+        }
+
+        .container { position: relative; z-index: 10; text-align: center; width: 90%; max-width: 500px; }
+
+        h1 { font-size: 1rem; letter-spacing: 4px; text-transform: uppercase; color: #555; margin-bottom: 40px; }
+
+        /* --- LA GRIETA --- */
+        #mark-svg {
+            filter: drop-shadow(0 0 10px var(--infernal-red));
+            transition: all 1.5s ease;
+            cursor: pointer;
+        }
+
+        /* --- UI DE CONTROL (MUY DISCRETA) --- */
+        #dm-panel {
+            margin-top: 40px;
+            opacity: 0.05; /* Casi invisible para los jugadores */
+            transition: opacity 0.5s;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+        #dm-panel:hover { opacity: 1; }
+
+        .input-group { display: flex; gap: 10px; }
+        
+        input {
+            background: #1a1a1a; border: 1px solid #333; color: white;
+            padding: 8px; width: 60px; text-align: center; font-family: serif;
+        }
+
+        .btn {
+            background: transparent; border: 1px solid #444; color: #888;
+            padding: 8px 15px; cursor: pointer; transition: 0.3s; font-size: 0.8rem;
+        }
+        .btn:hover { border-color: var(--infernal-red); color: white; }
+        .btn-red:hover { background: #400; }
+        .btn-blue:hover { background: #004; }
+
+        #status-text {
+            margin-top: 30px; font-style: italic; font-size: 0.9rem;
+            color: #444; min-height: 1.5em; transition: color 1s;
+        }
+
+        /* --- MODAL INICIAL --- */
+        #setup-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 200;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        /* --- REVELACIÓN --- */
+        #revelation {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: black; display: none; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 300;
+            text-align: center; padding: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ambient-glow"></div>
+
+    <div id="setup-modal">
+        <h2 style="color: var(--infernal-red)">Vínculo Inicial</h2>
+        <p>Introduce la puntuación de Carisma de Zyphira:</p>
+        <input type="number" id="initial-cha" value="10">
+        <button class="btn" style="margin-top: 20px" onclick="initCampaign()">Sellar Contrato</button>
+    </div>
+
+    <div class="container">
+        <h1>Vestigios de Malreth Vael</h1>
+        
+        <svg id="mark-svg" viewBox="0 0 100 100" width="280" height="280">
+            <path id="crack-path" d="M50 10 L55 30 L45 45 L60 60 L50 90 M50 45 L70 40 M50 60 L30 70" 
+                  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+
+        <div id="status-text">Cargando vínculo...</div>
+
+        <div id="dm-panel">
+            <div class="input-group">
+                <button class="btn btn-blue" onclick="modifyMark(-1)">— Reducir</button>
+                <input type="number" id="manual-roll" placeholder="1d4" min="1" max="4">
+                <button class="btn btn-red" onclick="modifyMark(1)">+ Aumentar</button>
+            </div>
+            <button class="btn" style="font-size: 0.6rem; margin-top: 20px;" onclick="confirmReset()">Reiniciar Marca</button>
+            <button class="btn" style="font-size: 0.7rem; color: var(--infernal-red);" onclick="revealFinal()">Revelar Sentencia</button>
+        </div>
+    </div>
+
+    <div id="revelation">
+        <h2 id="rev-title" style="font-size: 2.5rem;"></h2>
+        <p id="rev-desc" style="font-size: 1.2rem; max-width: 600px; color: #888;"></p>
+        <button class="btn" style="margin-top: 40px" onclick="closeRevelation()">Regresar al Registro</button>
+    </div>
+
+    <script>
+        let markValue = 0;
+        let audioCtx = null;
+        let heartbeatInterval = null;
+
+        // --- PERSISTENCIA Y CONFIGURACIÓN ---
+        window.onload = () => {
+            const savedValue = localStorage.getItem('zyphiraMark');
+            if (savedValue === null) {
+                document.getElementById('setup-modal').style.display = 'flex';
+            } else {
+                markValue = parseInt(savedValue);
+                updateVisuals();
+                startHeartbeat();
+            }
+        };
+
+        function initCampaign() {
+            const cha = document.getElementById('initial-cha').value;
+            markValue = parseInt(cha);
+            localStorage.setItem('zyphiraMark', markValue);
+            document.getElementById('setup-modal').style.display = 'none';
+            updateVisuals();
+            startHeartbeat();
+        }
+
+        // --- LÓGICA DE MARCA ---
+        function modifyMark(dir) {
+            const rollInput = document.getElementById('manual-roll');
+            const val = parseInt(rollInput.value) || 0;
+            
+            if (val === 0) {
+                alert("Introduce el resultado del dado primero.");
+                return;
+            }
+
+            markValue += (dir * val);
+            if (markValue < 0) markValue = 0;
+            
+            localStorage.setItem('zyphiraMark', markValue);
+            rollInput.value = ""; // Limpiar input
+            updateVisuals();
+            
+            // Efecto visual rápido de pulso al cambiar
+            const svg = document.getElementById('mark-svg');
+            svg.style.transform = "scale(1.2)";
+            setTimeout(() => svg.style.transform = "scale(1)", 200);
+        }
+
+        function updateVisuals() {
+            const ambient = document.getElementById('ambient-glow');
+            const svg = document.getElementById('mark-svg');
+            const statusText = document.getElementById('status-text');
+
+            // Normalización para visuales (0 a 20)
+            let intensity = Math.min(Math.max(markValue / 20, 0), 1);
+            
+            // Colores: Azul pálido (bajo) -> Rojo fuego (alto)
+            let r = Math.floor(100 + intensity * 155);
+            let g = Math.floor(100 - intensity * 100);
+            let b = Math.floor(255 - intensity * 255);
+            let color = `rgb(${r}, ${g}, ${b})`;
+
+            svg.style.color = color;
+            svg.style.filter = `drop-shadow(0 0 ${10 + intensity * 30}px ${color})`;
+            ambient.style.background = `radial-gradient(circle at 50% 50%, ${color}22 0%, transparent 70%)`;
+
+            // Textos evocadores
+            if (markValue >= 20) {
+                statusText.innerText = "La marca arde con un fulgor negro; el aire huele a azufre.";
+                statusText.style.color = "var(--infernal-red)";
+            } else if (markValue >= 13) {
+                statusText.innerText = "Un calor febril late bajo la piel de Zyphira.";
+                statusText.style.color = "#aa5555";
+            } else if (markValue <= 5) {
+                statusText.innerText = "La grieta está fría y silenciosa como el mármol.";
+                statusText.style.color = "var(--divine-blue)";
+            } else {
+                statusText.innerText = "La marca permanece latente en la penumbra.";
+                statusText.style.color = "#666";
+            }
+
+            // Ajustar velocidad de latido
+            if (heartbeatInterval) startHeartbeat();
+        }
+
+        // --- SONIDO (Web Audio API) ---
+        function playHeartbeatSound() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(60, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+            // Volumen según intensidad
+            let vol = 0.05 + (markValue / 20) * 0.2;
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function startHeartbeat() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            // Frecuencia de latido: de 1.5s (calma) a 0.4s (corrupción alta)
+            let speed = 1500 - (Math.min(markValue, 20) * 50);
+            
+            heartbeatInterval = setInterval(() => {
+                playHeartbeatSound();
+                // Simular latido doble (lub-dub)
+                setTimeout(() => playHeartbeatSound(), 200);
+            }, speed);
+        }
+
+        // --- FINALES ---
+        function revealFinal() {
+            const screen = document.getElementById('revelation');
+            const title = document.getElementById('rev-title');
+            const desc = document.getElementById('rev-desc');
+            screen.style.display = 'flex';
+
+            if (markValue >= 20) {
+                title.innerText = "CLÁUSULA EJECUTADA";
+                title.style.color = "var(--infernal-red)";
+                desc.innerText = "Malreth Vael reclama su deuda. El alma de Zyphira desciende a los Planos Inferiores en un grito silencioso.";
+            } else if (markValue >= 6) {
+                title.innerText = "CONTRATO IMPUGNADO";
+                title.style.color = "#d4af37";
+                desc.innerText = "El vínculo persiste. Los agentes infernales la perseguirán, pues el nombre de Zyphira aún consta en los registros de Asmodeus.";
+            } else {
+                title.innerText = "CONTRATO QUEBRADO";
+                title.style.color = "var(--divine-blue)";
+                desc.innerText = "La marca se desvanece. El contrato es nulo y Zyphira camina bajo una luz que Malreth no puede tocar.";
+            }
+        }
+
+        function closeRevelation() { document.getElementById('revelation').style.display = 'none'; }
+        
+        function confirmReset() {
+            if(confirm("¿Seguro que quieres borrar todo el progreso de la marca?")) {
+                localStorage.removeItem('zyphiraMark');
+                location.reload();
+            }
+        }
+
+        // Desbloquear audio en el primer click
+        document.body.addEventListener('click', () => {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        }, { once: true });
+    </script>
+</body>
+</html>

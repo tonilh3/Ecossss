@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sword Coast Explorer - Registro General</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --card-bg: rgba(15, 23, 42, 0.9);
+            --accent: #ffffff;
+            --text-main: #f8fafc;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100%;
+        }
+
+        /* --- SISTEMA DE MAPA (ESTILO BALDUR/WATERDEEP) --- */
+        /* Ajuste del contenedor para permitir el zoom */
+		#map-wrapper {
+			position: absolute;
+			top: 0; left: 0;
+			width: 100%;
+			overflow: hidden; /* Evita scrollbars al ampliar */
+			z-index: 1;
+			background: #000;
+		}
+
+		#map-image {
+			display: block;
+			width: 100%;
+			height: auto;
+			transition: opacity 0.4s ease, filter 0.4s ease, transform 0.2s ease-out;
+			opacity: 0.5;
+			filter: saturate(1.2) brightness(0.8);
+			transform-origin: center center;
+		}
+
+		/* Estado cuando la UI está oculta (Zoom activo) */
+		.ui-hidden-mode #map-image {
+			cursor: zoom-in;
+			transform: scale(2.5); /* Nivel de aumento */
+			opacity: 1 !important;
+			filter: saturate(1.2) brightness(1.1) !important;
+		}
+
+        #map-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            transition: opacity 0.4s ease, filter 0.4s ease;
+            opacity: 0.5;
+            filter: saturate(1.2) brightness(0.8);
+        }
+
+        #map-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.85) 100%);
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        .toggle-map {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 1000;
+            background: var(--card-bg);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            display: flex; align-items: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        /* --- CONTENEDOR DE LA APP --- */
+        .app-container {
+            position: relative;
+            z-index: 10;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        header, .search-container, .atlas-grid { pointer-events: auto; }
+        .ui-hidden { opacity: 0; pointer-events: none !important; }
+        .map-bright { opacity: 1 !important; filter: saturate(1.2) brightness(1.1) !important; }
+        .overlay-hidden { opacity: 0 !important; }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 25px;
+            padding: 20px 0;
+            background: rgba(15, 23, 42, 0.85);
+            border-radius: 0 0 15px 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        header h1 { margin: 0; font-size: 1.8rem; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+
+        .search-container {
+            max-width: 500px;
+            margin: 0 auto 30px auto;
+            display: flex;
+            background: var(--card-bg);
+            border-radius: 25px;
+            padding: 5px 15px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            backdrop-filter: blur(5px);
+        }
+
+        .search-container input {
+            background: transparent; border: none; color: white; padding: 10px; width: 100%; outline: none;
+        }
+
+        /* --- GRID DEL ATLAS --- */
+        .atlas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 15px;
+            padding-bottom: 100px;
+        }
+
+        .location-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .location-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .loc-title {
+            font-weight: bold;
+            color: var(--accent);
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .loc-tag {
+            font-size: 0.65rem;
+            background: rgba(56, 189, 248, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #ffffff;
+        }
+
+        .loc-resources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .res-icon {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255,255,255,0.05);
+            padding: 3px 7px;
+            border-radius: 4px;
+        }
+
+        .res-icon i { font-size: 14px; color: var(--accent); }
+
+        /* --- MODAL DETALLE --- */
+        #detail-view {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: #0a0f1e;
+            padding: 30px;
+            border-top: 4px solid var(--accent);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1100;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        #detail-view.active { transform: translateY(0); }
+        .close-btn { background: var(--accent); color: #000; padding: 5px 15px; border-radius: 4px; font-weight: bold; float: right; cursor: pointer; }
+		
+		/* Cuando la UI tiene la clase 'ui-hidden', deja de capturar el ratón */
+		#main-ui.ui-hidden {
+			pointer-events: none;
+		}
+
+		/* El botón del ojo debe seguir funcionando siempre */
+		.map-toggle {
+			pointer-events: auto !important;
+		}
+
+		/* Preparar el mapa para el zoom */
+		#map-image {
+			transition: transform 0.2s ease-out, opacity 0.4s ease; /* Añade transform aquí */
+			transform-origin: center center;
+		}
+
+		/* Clase que aplicaremos al mapa al ocultar la UI */
+		.map-zoomed {
+			transform: scale(1.5); /* Nivel de aumento */
+			cursor: zoom-in;
+			opacity: 1 !important;
+			filter: saturate(1.2) brightness(1.1) !important;
+		}
+
+    </style>
+</head>
+<body>
+
+    <div id="map-wrapper">
+        <img src="faerun-theswordcoast-dmsmap.jpg" id="map-image"> </div>
+
+    <div id="map-overlay"></div>
+
+    <button class="toggle-map" onclick="toggleUI()">
+        <span class="material-icons" id="map-icon">visibility_off</span>
+    </button>
+
+    <div class="app-container" id="main-ui">
+        <header>
+            <p style="color: #cbd5e1; font-size: 0.7rem; letter-spacing: 2px; margin:0;">ATLAS DE FAERÛN</p>
+            <h1>La Costa de la Espada</h1>
+        </header>
+
+        <div class="search-container">
+            <span class="material-icons" style="color:var(--accent); align-self:center;">search</span>
+            <input type="text" id="searchInput" placeholder="Filtrar por nombre o recurso..." onkeyup="filterCards()">
+        </div>
+
+        <div class="atlas-grid" id="atlasGrid">
+            
+            <div class="location-card" onclick="showDet('Alaron', 'Isla principal de Moonshaes. Controlada por la Casa Kendrick.', 'Fortaleza de Caer Callidyr, Kythyss (Puerto pesquero)', 'Posada del Descanso del Mar (Moderado y Adinerado)', 'Ninguna')">
+                <div class="loc-title">Alaron <span class="loc-tag">Moonshaes</span></div>
+                <div class="loc-resources">
+					<span class="res-icon"><i class="material-icons">shield</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Ardeep Forest', 'Bosque antiguo con ruinas de reinos elfos y enanos.', 'Ruinas de Reinos Elfos', 'Ninguna (Campamentos)', 'Santuarios a Corellon')">
+                <div class="loc-title">Ardeep Forest <span class="loc-tag">Bosque</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">landscape</i> Ruinas</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Canal de Asavir', 'La peligrosa franja de mar entre las Islas Moonshae y la Costa de la Espada, famosa por sus tormentas repentinas y criaturas marinas.', 'Rutas de Navegación', 'Ninguna (Barcos de paso)', 'Ninguna')">
+                <div class="loc-title">Canal de Asavir <span class="loc-tag">Estrecho Marino</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">sailing</i> Ruta Naval</span>
+                    <span class="res-icon"><i class="material-icons">scuba_diving</i> Naufragios</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Ascarle', 'Ciudad sumergida bajo el control del Kraken Slarkrethel.', 'Ruinas Submarinas', 'Ninguna', 'Sociedad Kraken')">
+                <div class="loc-title">Ascarle <span class="loc-tag">Submarino</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">scuba_diving</i> Kraken</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Aulmyr', 'Región submarina en el Mar de las Espadas, conocida por sus extensos bosques de algas y la presencia de los Aldani.', 'Desconocidos (presión del agua)', 'La Corte de los Mares del Sur (Aristócrata)', 'Monasterio de los Aldani')">
+                <div class="loc-title">Aulmyr <span class="loc-tag">Bajo el Mar</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">waves</i> Bosque Algas</span>
+					<span class="res-icon"><i class="material-icons">waves</i> Presión del Agua</span>
+                    <span class="res-icon"><i class="material-icons">temple_buddhist</i> Monasterio</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Bryn Shander', 'Capital de las Diez Ciudades, amurallada sobre una colina.', 'Mercado de Hueso de Ballena', 'El Gancho de Cobre (Moderado y Adinerado)', 'Templo de la Triada (Tyr, Torm e Ilmater)')">
+                <div class="loc-title">Bryn Shander <span class="loc-tag">Diez Ciudades</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">shield</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Candlekeep', 'Famosa fortaleza del saber y biblioteca.', 'Gran Biblioteca', 'El Hogar (Moderado)', 'Templos de Oghma, Deneir y Milil')">
+                <div class="loc-title">Candlekeep <span class="loc-tag">Biblioteca</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">menu_book</i> Biblioteca</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Cloakwood', 'Bosque antiguo al norte de Candlekeep.', 'Cuevas Contabandistas (Cala de la Mano Rota)', 'Ninguna (Campamentos)', 'Ninguna')">
+                <div class="loc-title">Cloakwood <span class="loc-tag">Bosque</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">terrain</i> Cuevas</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Cloud Peaks', 'Una cordillera escarpada y perpetuamente nevada que separa Amn del resto de la Costa de la Espada, hogar de gigantes de las nubes y dragones blancos.', 'Minas de Hierro y Piedras Preciosas', 'Ninguna (Campamentos en los pasos de montaña)', 'Santuarios a Selûne en las cimas')">
+                <div class="loc-title">Cloud Peaks <span class="loc-tag">Cordillera</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">terrain</i> Picos Nevados</span>
+                    <span class="res-icon"><i class="material-icons">diamond</i> Gemas</span>
+                    <span class="res-icon"><i class="material-icons">ac_unit</i> Clima Ártico</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Daggerford', 'Pueblo estratégico junto al Camino de la Costa.', 'Castillo Daggerford', 'Posada El Buche del Lagarto (Moderado)', 'Templo de Chauntea')">
+                <div class="loc-title">Daggerford <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Castillo Dragonspear', 'Castillo en ruinas cerca de High Moor, ahora desmoronado, está constantemente envuelto en una densa niebla.', 'Castillo Dragonspear', 'Ninguna (Campamentos)', 'Ninguna')">
+                <div class="loc-title">Castillo Dragonspear <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+					<div class="loc-resources"><span class="res-icon"><i class="material-icons">park</i> Ruinas</span></div>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Evermoors', 'Una vasta y elevada meseta de colinas onduladas, pantanos y ciénagas, famosa por estar infestada de trolls y gigantes. Un lugar de nieblas constantes y terreno traicionero.', 'Ninguno', 'Ninguna (Territorio extremadamente peligroso)', 'Antiguos túmulos funerarios (Santuarios bárbaros)')">
+                <div class="loc-title">Evermoors <span class="loc-tag">Meseta Salvaje</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">waves</i> Pantanos</span>
+                    <span class="res-icon"><i class="material-icons">visibility</i> Niebla</span>
+                    <span class="res-icon"><i class="material-icons">warning</i> Trolls</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Fields of the Dead', 'Una inmensa llanura sembrada de túmulos y huesos, escenario de históricas batallas. Se dice que los muertos no descansan bajo su hierba amarillenta.', 'Túmulos antiguos (tesoros ocultos)', 'Ninguna (Campamentos de caravanas armadas)', 'Santuarios a Kelemvor y Jergal')">
+                <div class="loc-title">Fields of the Dead <span class="loc-tag">Llanura</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">landscape</i> Túmulos</span>
+                    <span class="res-icon"><i class="material-icons">history_edu</i> Restos de Batallas</span>
+                    <span class="res-icon"><i class="material-icons">visibility</i> Nieblas</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Fireshear', 'Asentamiento minero en el gélido norte.', 'Minas de Cobre/Hierro, Establos de Grifos', 'Posada de la Llama Falsa (Moderado)', 'Ninguna')">
+                <div class="loc-title">Fireshear <span class="loc-tag">Minería</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">diamond</i> Minas</span>
+                    <span class="res-icon"><i class="material-icons">pets</i> Grifos</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Bosque de Tethir', 'Este inmenso bosque, también conocido como Wealdath, alberga una gran comunidad de elfos silvanos y se considera la frontera sur de Amn.', 'Aserradero del Bosque de Thethir', 'Ninguna (Campamentos)', 'Ninguna')">
+                <div class="loc-title">Bosque de Tethir <span class="loc-tag">Bosque</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">park</i> Aserradero</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Morninglord', 'Fortaleza abandonada al este de Baldur está completamente tapiada, con todas las ventanas y puertas selladas.', 'Fuerte del Señor de la Mañana', 'Ninguna (Campamentos)', 'Ninguna')">
+                <div class="loc-title">Morninglord <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Fuerte Vuuxaria', 'Un bastión militar sumergido que sirve como punto de avanzada y defensa en las profundidades marinas.', 'Armería Submarina', 'Barracones militares', 'Santuario de los Dioses del Mar')">
+                <div class="loc-title">Fuerte Vuuxaria <span class="loc-tag">Bajo el Mar</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">shield</i> Guarnición</span>
+					<span class="res-icon"><i class="material-icons">waves</i> Presión del Agua</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Gauntlgrym', 'Antigua capital de los enanos de Delzoun.', 'La Gran Forja', 'Salones de Piedra', 'Templo de los Dioses Enanos (Moradin)')">
+                <div class="loc-title">Gauntlgrym <span class="loc-tag">Enano</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hardware</i> Forja</span>
+                    <span class="res-icon"><i class="material-icons">shield</i> Fortaleza</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Goldenfields', 'Una enorme ciudad-granja fortificada y dedicada a Chauntea. Sus campos proveen de alimento a gran parte de la Costa de la Espada, especialmente a Waterdeep.', 'Graneros Inmensos, Ganadería y Cultivos Mágicos', 'Posada de la Cosecha Abundante (Moderado)', 'Gran Templo Abierto de Chauntea')">
+                <div class="loc-title">Goldenfields <span class="loc-tag">Ciudad Agrícola</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">agriculture</i> Granero</span>
+                    <span class="res-icon"><i class="material-icons">fort</i> Murallas</span>
+                    <span class="res-icon"><i class="material-icons">local_florist</i> Chauntea</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Gull Rocks', 'Un archipiélago de islotes escarpados que sirven como santuario para miles de gaviotas y aves marinas. Sus aguas son traicioneras debido a los arrecifes ocultos.', 'Recolección de Guano, Pesca abundante (forrajear)', 'Ninguna (Refugio natural)', 'Pequeños altares de piedra a Valkur')">
+                <div class="loc-title">Gull Rocks <span class="loc-tag">Islotes</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">flutter_dash</i> Aves Marinas</span>
+                    <span class="res-icon"><i class="material-icons">sailing</i> Escollos</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Gwynneth', 'Isla de las Moonshaes dominada por la naturaleza salvaje y el reino feérico de Sarifal.', 'Valle de Myrloch (Corazón de la isla)', 'Ninguna (Campamentos)', 'Naturaleza: Pozo Lunar en el Bosque de Winterglen')">
+                <div class="loc-title">Gwynneth <span class="loc-tag">Moonshaes</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">auto_awesome</i> Pozo Lunar</span>
+                    <span class="res-icon"><i class="material-icons">park</i> Winterglen</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Helm\'s Hold', 'Monasterio fortificado dedicado al dios Helm.', 'Mercado Luminoso', 'Posada del Centinela (Moderado), Taberna El Viejo Enano Sucio', 'Catedral de Helm')">
+                <div class="loc-title">Helm's Hold <span class="loc-tag">Religioso</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">temple_hindu</i> Templo</span>
+                    <span class="res-icon"><i class="material-icons">store</i> Mercado</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('High Forest', 'El bosque más extenso de Faerûn, hogar de ents, elfos silvanos y centauros. Es un lugar de magia salvaje donde se esconden las ruinas del antiguo imperio de Eaerlann y la misteriosa Puerta del Infierno.', 'Madera excepcional, Plantas medicinales raras y Artefactos antiguos', 'Ninguna (Asentamientos naturales en las copas de los árboles)', 'Templos a Silvanus y Mielikki')">
+                <div class="loc-title">High Forest <span class="loc-tag">Bosque Ancestral</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">forest</i> Ents</span>
+                    <span class="res-icon"><i class="material-icons">auto_awesome</i> Magia Primordial</span>
+                    <span class="res-icon"><i class="material-icons">castle</i> Ruinas de Eaerlann</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Hundelstone', 'Pueblo fronterizo situado en las faldas de la Columna del Mundo, famoso por sus expertos canteros y excavadores.', 'Canteras de Piedra', 'Posada de Hundelstone (Moderado)', 'Santuarios a los Dioses Enanos')">
+                <div class="loc-title">Hundelstone <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">terrain</i> Paso del Hielo</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Ice Peak', 'Isla volcánica en el Mar de Hielo Movedizo. Aurilssbarg es el asentamiento más grande.', 'Puerto de Aurilssbarg (Aceite de ballena)', 'Posada Salón Verde (Moderado)', 'Santuarios a Auril')">
+                <div class="loc-title">Ice Peak <span class="loc-tag">Isla Ártica</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Icewind Dale', 'Gélida región al norte de la Columna del Mundo, famosa por sus tres lagos: Maer Dualdon, Lac Dinneshere y Aguas Rojas.', 'Pesca de Trucha Cabeza de Jarrete (Espinas Marfil)', 'Diversas (Diez Ciudades)', 'Tirada de los Dioses (La Tríada)')">
+                <div class="loc-title">Icewind Dale <span class="loc-tag">Región</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">water</i> Lagos</span>
+                    <span class="res-icon"><i class="material-icons">location_city</i> Diez Ciudades</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Ioma', 'Una de las islas del archipiélago de Nelanther, conocida por su actividad minera.', 'Mina de Ioma (Hierro)', 'Tabernas de puerto (Moderado)', 'Ninguno')">
+                <div class="loc-title">Ioma <span class="loc-tag">Nelanther</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">diamond</i> Mina</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Ironmaster', 'Ciudad enana excavada en el valle de Kuldar, cerrada a los no-enanos.', 'Forja de Ironmaster', 'Salones de invitados (solo enanos)', 'Templos a Moradin')">
+                <div class="loc-title">Ironmaster <span class="loc-tag">Enano</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hardware</i> Forja</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Iumathiashae', 'Ciudad de elfos marinos protegida por barreras mágicas en las profundidades.', 'Ninguno (Mundo diferente al de los mortales de Faerûn)', 'Ninguna', 'Santuarios a Deep Sashelas')">
+                <div class="loc-title">Iumathiashae <span class="loc-tag">Bajo el Mar</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">shield</i> Fortaleza</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Archipiélago de Korinn', 'Cientos de islas pequeñas habitadas por granjeros y pastores en su mayoría.', 'Asentamiento de Westhaven (Puerto)', 'Posadas en Pandira (Moderado)', 'Santuarios locales')">
+                <div class="loc-title">Archipiélago de Korinn <span class="loc-tag">Archipiélago</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">sailing</i> Westhaven</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Lathtarl’s Lantern', 'Pequeña aldea costera que sirve de parada en el Camino de la Costa.', 'Puerto pequeño', 'Posada La Linterna de Lathtarl (Moderado)', 'Ninguno')">
+                <div class="loc-title">Lathtarl’s Lantern <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Leilon', 'Pueblo estratégico que sirve como centro de descanso para las caravanas entre Waterdeep y Neverwinter.', 'Mina de Leilon (Cobre)', 'Posada Los Colmillos del Orco (Moderado)', 'Templo de Lathander')">
+                <div class="loc-title">Leilon <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">diamond</i> Mina</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Lizard Marsh', 'Pantano peligroso en la desembocadura del río Delimbiyr.', 'Poblados de Hombres-Lagarto, La Fortaleza de Cromm', 'Ninguna (Campamentos hostiles)', 'Cultos Paganos de los Hombres Lagarto')">
+                <div class="loc-title">Lizard Marsh <span class="loc-tag">Pantano</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza Cromm</span>
+                    <span class="res-icon"><i class="material-icons">groups</i> Tribus</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Longsaddle', 'Hogar de la excéntrica familia de magos Harpell.', 'Rancho de ganado, Mansión Ivy (Círculos mágicos)', 'Posada La Herradura Dorada (Moderado y Adinerado)', 'Ninguna')">
+                <div class="loc-title">Longsaddle <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">auto_stories</i> Mansión Ivy</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Lurkwood', 'Un bosque denso y oscuro en las faldas de la Columna del Mundo. Es famoso por ser el hogar de numerosas tribus de orcos y gigantes que lo usan como base para saquear el Norte.', 'Madera de construcción, Caza mayor y Pieles (forrajear)', 'Ninguna (Campamentos de exploradores muy bien ocultos)', 'Antiguos altares totémicos de tribus orcas')">
+                <div class="loc-title">Lurkwood <span class="loc-tag">Bosque Peligroso</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">forest</i> Densidad Forestal</span>
+                    <span class="res-icon"><i class="material-icons">groups</i> Tribus Orcas</span>
+                    <span class="res-icon"><i class="material-icons">visibility_off</i> Emboscadas</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Luskan', 'La Ciudad de las Velas, hogar de piratas y archimagos.', 'Almacenes, Puerto y Astilleros, Corte de los Grandes Capitanes y Torre de los Arcanos', 'Posada Jax el Tuerto (Moderado)', 'Dioses del Mar')">
+                <div class="loc-title">Luskan <span class="loc-tag">Ciudad</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                    <span class="res-icon"><i class="material-icons">auto_stories</i> Torre Arcana</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Mintarn', 'Isla estado y puerto libre conocido por su neutralidad y por pagar tributo al dragón Hoondarrh.', 'Montaña Skadaurak (Guarida de Hoondarrh, la Furia Roja)', 'Posada de la Sierpe (Moderado)', 'Ninguna')">
+                <div class="loc-title">Mintarn <span class="loc-tag">Isla-Estado</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto Libre</span>
+                    <span class="res-icon"><i class="material-icons">local_fire_department</i> Guarida Dragón</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Mirabar', 'La ciudad minera más rica del Norte. Un bastión de piedra gobernado por el Consejo de Piedras Brillantes.', 'Mina y Forja de las Piedras Brillantes', 'Posada del Martillo de Hierro (Moderado)', 'Templo de Dioses Enanos (Dumathoin, dios de la mineria y la exploración bajo tierra)')">
+                <div class="loc-title">Mirabar <span class="loc-tag">Ciudad Enana/Humana</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">diamond</i> Minas</span>
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hardware</i> Forjas</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Misty Forest', 'Un bosque perpetuamente envuelto en una espesa niebla mágica, hogar de elfos silvanos y gigantes. Es conocido por su belleza melancólica y por ser un bastión de resistencia contra el Culto del Dragón.', 'Madera de Calidad, Hierbas Alquímicas Raras (forrajear)', 'Ninguna (Campamentos ocultos en las copas de los árboles)', 'Santuarios Naturales a Corellon')">
+                <div class="loc-title">Misty Forest <span class="loc-tag">Bosque</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">cloud</i> Niebla Eterna</span>
+                    <span class="res-icon"><i class="material-icons">architecture</i> Elfos Silvanos</span>
+                    <span class="res-icon"><i class="material-icons">groups</i> Hienas Gigantes</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Mithral Hall', 'Una legendaria ciudad enana tallada en las profundidades de la montaña. Tras ser liberada de las garras del dragón Shimmergloom, ha vuelto a ser el corazón de la minería de mithral en el Norte.', 'Minas de Mithral, Forjas Legendarias', 'Salones de Invitados (Adinerado)', 'Templo de los Dioses Enanos (Panteón de Moradin)')">
+                <div class="loc-title">Mithral Hall <span class="loc-tag">Bastión Enano</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">diamond</i> Mithral</span>
+                    <span class="res-icon"><i class="material-icons">hardware</i> Forjas Reales</span>
+                    <span class="res-icon"><i class="material-icons">shield</i> Defensas</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Moray', 'La isla más occidental y salvaje de las Moonshaes, donde la naturaleza lucha contra la corrupción de la Sangre Negra. La Capital Caer Moray.', 'Campamento de la tribu Sangre Negra', 'Ninguna (Campamentos hostiles)', 'Naturaleza: Pozo Lunar (Rituales blasfemos por los adoradores de Malar, dios de la furia salvaje)')">
+                <div class="loc-title">Moray <span class="loc-tag">Moonshaes</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">auto_awesome</i> Pozo Lunar</span>
+                    <span class="res-icon"><i class="material-icons">pets</i> Sangre Negra</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Murann', 'También conocida como la Ciudad de los Marineros, es la segunda ciudad más grande de Amn.', 'Astilleros de Murann, Mercancías del Continente de Maztica (exótico)', 'Posada Bahía de Tarseth (Moderado), Gremio de Ladrones de las Sombras', 'Templos Dioses del Mar')">
+                <div class="loc-title">Murann <span class="loc-tag">Ciudad Portuaria</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                    <span class="res-icon"><i class="material-icons">gavel</i> Gremio Ladrones</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Nésme', 'Una ciudad fortificada estratégicamente situada a orillas del río Surbrin. Tradicionalmente gobernada por los Jinetes de Nésme, ha sido un muro de contención contra las hordas de trolls y orcos de los Páramos Eternos.', 'Comercio de Pieles, Guarnición Militar', 'Posada de la Pértiga (Moderado)', 'Santuarios a Helm')">
+                <div class="loc-title">Nésme <span class="loc-tag">Ciudad Fronteriza</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Murallas</span>
+                    <span class="res-icon"><i class="material-icons">shield</i> Jinetes de Nésme</span>
+                    <span class="res-icon"><i class="material-icons">water_drop</i> Río Surbrin</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Norland', 'La isla más al norte de las Moonshaes, hogar de los rudos marineros conocidos como Northlanders. Es famosa por sus impresionantes fiordos y por la ciudad de Rogarsheim.', 'Madera, Pescado y Pieles de Bestia', 'Posada del Gran Hacha (Moderado)', 'Santuarios a Tempus y Valkur')">
+                <div class="loc-title">Norland <span class="loc-tag">Moonshaes</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">sailing</i> Drakkares</span>
+                    <span class="res-icon"><i class="material-icons">terrain</i> Fiordos</span>
+                    <span class="res-icon"><i class="material-icons">hiking</i> Hombres del Norte</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Orlumbor', 'Isla rocosa famosa por albergar a los mejores constructores de barcos de la Costa de la Espada.', 'Mercado de Suministros Navales y Astilleros', 'Posada del Ancla de Oro (Moderado y Adinerado)', 'Santuario de Gond (La Cueva de los Engranajes)')">
+                <div class="loc-title">Orlumbor <span class="loc-tag">Isla Astillero</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">build</i> Astilleros</span>
+                    <span class="res-icon"><i class="material-icons">store</i> Mercado</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Phandalin', 'Pequeño pueblo minero en expansión.', 'Mina Perdida (Pacto de Phandelver)', 'Posada Stonehill (Moderado)', 'Santuario de la Suerte (Tymora)')">
+                <div class="loc-title">Phandalin <span class="loc-tag">Frontera</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">diamond</i> Minas</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Port Llast', 'Un pequeño asentamiento costero que sirve como baluarte aliado contra la influencia de Luskan.', 'Puerto y Canteras', 'Posada de la Alianza (Moderado)', 'Santuarios a Gond')">
+                <div class="loc-title">Port Llast <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">temple_hindu</i> Templo</span>
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Red Larch', 'Un próspero pueblo de paso situado en el Camino Largo, conocido por sus canteras, por ser un nexo de caravanas y sus casas construidas con Alerces Rojos.', 'Canteras de Piedra', 'Posada El Yelmo de Highsun (Moderado)', 'Santuario de Todas las Religiones')">
+                <div class="loc-title">Red Larch <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">church</i> Santuario</span>
+                    <span class="res-icon"><i class="material-icons">terrain</i> Canteras</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Roaringshore', 'Un asentamiento infame que sirve como refugio para piratas, contrabandistas y aquellos que huyen de la justicia de las grandes ciudades.', 'Fortaleza Pirata', 'Posada El Cáliz Roto (Moderado)', 'Santuarios a Umberlee')">
+                <div class="loc-title">Roaringshore <span class="loc-tag">Refugio Pirata</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">gavel</i> Contrabando</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Ruathym', 'La cuna de la cultura de los Hombres del Norte, una isla de acantilados escarpados y guerreros feroces.', 'Fortaleza Salón de las Olas Negras, Biblioteca Las Salas Verdes', 'Posada del Primer Hacha (Moderado)', 'Santuarios a Tempus')">
+                <div class="loc-title">Ruathym <span class="loc-tag">Isla Norteña</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">menu_book</i> Biblioteca</span>
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Secomber', 'Un pueblo acogedor construido sobre colinas que ocultan las ruinas de la antigua capital de Athalantar. Es un nexo comercial clave y el último punto de civilización antes de entrar en las peligrosas High Moors.', 'Pesca, Piedra de Cantera y Guías de Exploración', 'Posada de los Siete Vientos (Moderado)', 'Santuarios a Chauntea')">
+                <div class="loc-title">Secomber <span class="loc-tag">Pueblo de Paso</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Pesca</span>
+                    <span class="res-icon"><i class="material-icons">park</i> Guías</span>
+                    <span class="res-icon"><i class="material-icons">landscape</i> Ruinas Enterradas</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Skaug', 'El asentamiento más grande de las Nelanther, un nido de piratas construido en un puerto natural protegido.', 'Astilleros de reparación pirata', 'Posada El Keelhaul (Moderado)', 'Santuarios a Umberlee (La Reina Perra)')">
+                <div class="loc-title">Skaug <span class="loc-tag">Refugio Pirata</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Snowdown', 'La isla más meridional de las Moonshaes, densamente poblada y convertida en un centro de explotación de recursos para Amn.', 'Fortaleza Caer Westphal', 'Posada de la Rosa de Hierro (Moderado)', 'Ninguna')">
+                <div class="loc-title">Snowdown <span class="loc-tag">Moonshaes</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Fortaleza</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                    <span class="res-icon"><i class="material-icons">terrain</i> Minas</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Star Mounts', 'Un conjunto de picos increíblemente altos y misteriosos en el centro del Bosque Alto. Están envueltos en nubes perpetuas y son el hogar de dragones antiguos y extrañas anomalías mágicas.', 'Cristales Terrestres, Hierbas (forrajear)', 'Ninguna (Cimas inaccesibles)', 'Ninguna')">
+                <div class="loc-title">Star Mounts <span class="loc-tag">Macizo Central</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">filter_drama</i> Cumbres Nubladas</span>
+                    <span class="res-icon"><i class="material-icons">auto_awesome</i> Energía Arcana</span>
+                    <span class="res-icon"><i class="material-icons">pets</i> Monturas Voladoras</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Thornhold', 'Fortaleza de enanos del Clan Stoneshaft.', 'Fortaleza de Piedra', 'Posada del Cuerno de Piedra (Moderado)', 'Santuarios a Dumathoin')">
+                <div class="loc-title">Thornhold <span class="loc-tag">Fortaleza</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">shield</i> Fortaleza</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Tír faoi Thoinn', 'Un espléndido asentamiento de elfos marinos oculto bajo las olas, donde la arquitectura de coral se mezcla con la magia oceánica.', 'Palacio de Coral de la Corte Marina', 'Jardines de Algas Luminiscentes', 'Templo de Deep Sashelas')">
+                <div class="loc-title">Tír faoi Thoinn <span class="loc-tag">Bajo el Mar</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">auto_awesome</i> Magia Élfica</span>
+                    <span class="res-icon"><i class="material-icons">water</i> Ciudad Coral</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Triboar', 'Un importante centro logístico y de comercio en el Valle de Dessarin, famoso por sus ferias de caballos y su milicia montada.', 'Mercado de Caballos y Caravanas', 'Posada El Decreto del Señor (Moderada)', 'Templo a Chauntea')">
+                <div class="loc-title">Triboar <span class="loc-tag">Nexo Comercial</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">directions_run</i> Posta de Caravanas</span>
+                    <span class="res-icon"><i class="material-icons">pets</i> Cría de Caballos</span>
+                    <span class="res-icon"><i class="material-icons">store</i> Gran Mercado</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Tuern', 'Una isla volcánica y aislada, habitada por bárbaros Northlanders y dominada por los picos de fuego donde anidan dragones.', 'Uttersea (El único puerto), Guardería Githyanki en la Montaña Falla de la Llama', 'Salones comunales de los clanes locales', 'Ninguna')">
+                <div class="loc-title">Tuern <span class="loc-tag">Isla Volcánica</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">volcano</i> Volcanes</span>
+                    <span class="res-icon"><i class="material-icons">local_fire_department</i> Dragones</span>
+                    <span class="res-icon"><i class="material-icons">anchor</i> Puerto</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Tulmene', 'Un asentamiento fortificado en las Nelanther que sirve como punto de reabastecimiento para comerciantes valientes y mercenarios.', 'Astilleros Pyllam, Mercado de Especias y Suministros', 'Posada Las Cinco Dagas (Moderado)', 'Ninguna')">
+                <div class="loc-title">Tulmene <span class="loc-tag">Enclave Nelanther</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">fort</i> Atalaya</span>
+                    <span class="res-icon"><i class="material-icons">shopping_cart</i> Suministros</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Underwave', 'Un asentamiento submarino, conocido por ser un nexo de comercio entre los habitantes terrestres y las razas acuáticas.', 'Palacio coral del Sultán Klaptikos de la Gran Ola', 'Habitaciones con Burbuja de Aire', 'Santuario Olhydra, Princesa Plano Elemental del Agua')">
+                <div class="loc-title">Underwave <span class="loc-tag">Bajo el Mar</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">waves</i> Presión del Agua</span>
+                    <span class="res-icon"><i class="material-icons">shopping_basket</i> Comercio Submarino</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Velen', 'Ciudad costera en la península de Tethyr en la Cabeza del Dragón.', 'Puerto Comercial', 'Posada de la Brisa Marina (Moderada)', 'Juramentos: Devoción al Honor y la lealtad debida a los amigos')">
+                <div class="loc-title">Velen <span class="loc-tag">Península</span></div>
+                <div class="loc-resources"><span class="res-icon"><i class="material-icons">anchor</i> Astilleros</span></div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Warlock’s Crypt', 'Las ruinas de una antigua ciudad de Netheril, ahora un bastión de no-muertos gobernado por el Rey Sombrío, Larloch.', 'Torre de Larloch (El Trono de los Huesos)', 'Ninguna (Territorio hostil)', 'Antiguos Santuarios de Mystryl (Profanados)')">
+                <div class="loc-title">Warlock’s Crypt <span class="loc-tag">Ruinas Netherinas</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">scuba_diving</i> Magia Antigua</span>
+                    <span class="res-icon"><i class="material-icons">shield</i> No-muertos</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Westbridge', 'Un pequeño y acogedor pueblo de paso situado en la intersección del Camino Largo y la Senda de la Piedra.', 'Mercado de Grano y Ganado', 'Posada del Puente de Piedra (Moderado)', 'Santuario de Chauntea')">
+                <div class="loc-title">Westbridge <span class="loc-tag">Asentamiento</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">agriculture</i> Granjas</span>
+                    <span class="res-icon"><i class="material-icons">hotel</i> Posada</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Whalebones', 'Un archipiélago de islotes rocosos cubiertos de niebla, plagado de esqueletos de ballenas gigantes y hogar de clanes Northlanders.', 'Cementerios de Ballenas', 'Ninguna (Territorio hostil)', 'Sacrificioss a los Gigantes y sus Monturas Roc')">
+                <div class="loc-title">Whalebones <span class="loc-tag">Archipiélago</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">sailing</i> Pescadores</span>
+                    <span class="res-icon"><i class="material-icons">visibility</i> Niebla Constante</span>
+                </div>
+            </div>
+			
+			<div class="location-card" onclick="showDet('Wood of Sharp Teeth', 'Un bosque extremadamente denso y peligroso, infestado de monstruos y licántropos. Se dice que sus árboles crecen tan juntos que la luz del sol rara vez toca el suelo.', 'Caza mayor, Madera rara, Ruinas ocultas', 'Ninguna (Territorio hostil)', 'Antiguos círculos de druidas (corrompidos)')">
+                <div class="loc-title">Wood of Sharp Teeth <span class="loc-tag">Bosque Peligroso</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">pest_control_rodent</i> Bestias</span>
+                    <span class="res-icon"><i class="material-icons">coronavirus</i> Licantropía</span>
+                    <span class="res-icon"><i class="material-icons">visibility_off</i> Espesura</span>
+                </div>
+            </div>
+
+            <div class="location-card" onclick="showDet('Yartar', 'Ciudad fortificada famosa por su mercado de barcazas.', 'Mercado de Flotillas, Gremio de ladrones: la Mano de Yartar', 'Posada Fluvial La Gran Dama (Aristócrata)', 'Templos a Tymora (La Diosa de la Fortuna)')">
+                <div class="loc-title">Yartar <span class="loc-tag">Comercio</span></div>
+                <div class="loc-resources">
+                    <span class="res-icon"><i class="material-icons">gavel</i> Gremio Ladrones</span>
+                    <span class="res-icon"><i class="material-icons">groups</i> Gremios Artesanos</span>
+                </div>
+            </div>
+
+            </div>
+    </div>
+
+    <div id="detail-view">
+        <div class="close-btn" onclick="closeDet()">CERRAR</div>
+        <h2 id="det-name" style="color:var(--accent); margin-top:0;"></h2>
+        <p id="det-desc" style="color: #cbd5e1; font-style: italic;"></p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <div>
+                <strong style="color:var(--accent)">Recursos:</strong>
+                <p id="det-recursos" style="color:white;"></p>
+            </div>
+            <div>
+                <strong style="color:var(--accent)">Posada/Taberna/Descanso:</strong>
+                <p id="det-posada" style="color:white;"></p>
+            </div>
+        </div>
+        <div style="margin-top: 15px;">
+            <strong style="color:var(--accent)">Religión:</strong>
+            <p id="det-templo" style="color:white;"></p>
+        </div>
+    </div>
+
+    <script>
+        function toggleUI() {
+			const ui = document.getElementById('main-ui');
+			const map = document.getElementById('map-image');
+			const overlay = document.getElementById('map-overlay');
+			const icon = document.getElementById('map-icon');
+			
+			ui.classList.toggle('ui-hidden');
+			map.classList.toggle('map-zoomed'); // Nueva clase para el zoom
+			overlay.classList.toggle('overlay-hidden');
+			
+			// Si volvemos a mostrar la UI, reseteamos el zoom al centro
+			if (!ui.classList.contains('ui-hidden')) {
+				map.style.transformOrigin = "center center";
+			}
+			
+			icon.innerText = ui.classList.contains('ui-hidden') ? 'visibility' : 'visibility_off';
+		}
+
+        function showDet(name, desc, res, pos, temp) {
+            document.getElementById('det-name').innerText = name;
+            document.getElementById('det-desc').innerText = desc;
+            document.getElementById('det-recursos').innerText = res;
+            document.getElementById('det-posada').innerText = pos;
+            document.getElementById('det-templo').innerText = temp;
+            document.getElementById('detail-view').classList.add('active');
+        }
+
+        function closeDet() {
+            document.getElementById('detail-view').classList.remove('active');
+        }
+
+        function filterCards() {
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let cards = document.getElementsByClassName('location-card');
+            for (let card of cards) {
+                let text = card.innerText.toLowerCase();
+                card.style.display = text.includes(input) ? "flex" : "none";
+            }
+        }
+		// Seguimiento del ratón para el efecto lupa
+		document.getElementById('map-wrapper').addEventListener('mousemove', function(e) {
+			// Solo actúa si la interfaz está oculta (clase ui-hidden-mode en el body)
+			if (!document.body.classList.contains('ui-hidden-mode')) return;
+			
+			const mapImg = document.getElementById('map-image');
+			
+			// Calculamos la posición del ratón en porcentaje respecto al contenedor
+			const x = (e.pageX / this.offsetWidth) * 100;
+			const y = (e.pageY / this.offsetHeight) * 100;
+			
+			// Desplazamos el origen del transform para que el zoom siga al puntero
+			mapImg.style.transformOrigin = `${x}% ${y}%`;
+		});
+		
+		document.addEventListener('mousemove', function(e) {
+			const map = document.getElementById('map-image');
+			
+			// Solo funciona si la UI está oculta (modo zoom activo)
+			if (map.classList.contains('map-zoomed')) {
+				// Calculamos la posición del ratón en porcentaje respecto a la ventana
+				const x = (e.clientX / window.innerWidth) * 100;
+				const y = (e.clientY / window.innerHeight) * 100;
+				
+				// Movemos el origen del zoom a la posición del ratón
+				map.style.transformOrigin = `${x}% ${y}%`;
+			}
+		});
+    </script>
+</body>
+</html>

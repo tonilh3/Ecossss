@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Arquitecto Naval v3.5 - Call from the Deep</title>
+    <style>
+        :root {
+            --gold: #d4af37;
+            --blood: #b22222;
+            --bg: #0a0a0a;
+            --panel: #161616;
+            --drow-violet: #8a2be2;
+            --text: #e0e0e0;
+            --weapon-slot: rgba(178, 34, 34, 0.3);
+            --upgrade-slot: rgba(138, 43, 226, 0.3);
+            --health-color: #2ecc71;
+            --danger-glow: rgba(255, 68, 0, 0);
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: 320px; background: var(--panel);
+            border-right: 2px solid #333;
+            display: flex; flex-direction: column; padding: 15px;
+            overflow-y: auto; flex-shrink: 0;
+        }
+
+        .stat-card {
+            background: #000; border: 1px solid var(--gold);
+            padding: 10px; border-radius: 4px; margin-bottom: 10px;
+        }
+
+        .stat-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+            font-size: 0.8rem; margin-top: 5px;
+        }
+
+        .stat-val { color: var(--gold); font-weight: bold; text-align: right; }
+
+        h2, h3 { color: var(--gold); font-family: 'Georgia', serif; margin-bottom: 10px; border-bottom: 1px solid #444; }
+
+        .btn-group { display: flex; gap: 5px; margin-bottom: 15px; }
+        button { 
+            flex: 1; padding: 8px; cursor: pointer; border: 1px solid #444; 
+            background: #222; color: white; font-size: 0.75rem; transition: 0.3s;
+        }
+        button:hover { background: #333; border-color: var(--gold); }
+        .btn-danger { color: #ff4444; }
+        .btn-save { color: #44ff44; }
+
+        .draggable-item {
+            background: #222; border-left: 3px solid var(--gold);
+            padding: 8px; margin-bottom: 5px; cursor: grab;
+            font-size: 0.85rem; display: flex; justify-content: space-between;
+        }
+        .draggable-item:hover { background: #333; }
+
+        /* --- HUD DE VIDA --- */
+        #hp-hud {
+            position: absolute; top: 20px; right: 20px;
+            width: 250px; background: rgba(0,0,0,0.8);
+            border: 2px solid var(--gold); padding: 15px;
+            z-index: 100; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 8px; transition: 0.3s;
+        }
+
+        .hp-bar-container {
+            height: 12px; background: #333; border-radius: 6px;
+            margin: 10px 0; overflow: hidden; border: 1px solid #444;
+        }
+
+        #hp-bar-fill {
+            height: 100%; width: 100%;
+            background: linear-gradient(90deg, #b22222, #2ecc71);
+            transition: width 0.5s ease;
+        }
+
+        .hp-controls { display: flex; gap: 5px; }
+        .hp-input { 
+            width: 60px; background: #000; border: 1px solid #444; 
+            color: white; text-align: center; font-weight: bold;
+        }
+
+        /* --- ÁREA CENTRAL --- */
+        #main-content {
+            flex-grow: 1; display: flex; flex-direction: column;
+            background: #000; position: relative;
+            /* Efecto de resplandor dinámico */
+            transition: box-shadow 0.5s ease;
+        }
+
+        #ship-image-container {
+            flex-grow: 1; background-color: #222; 
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 0px var(--danger-glow);
+            transition: box-shadow 0.5s;
+        }
+
+        #ship-image-container img {
+            max-width: 90%; max-height: 90%; object-fit: contain;
+            transition: filter 0.5s;
+        }
+
+        /* --- SLOTS --- */
+        #slots-row {
+            height: 85px; background: #111; border-top: 2px solid #333;
+            display: grid; grid-template-columns: repeat(10, 1fr);
+            gap: 10px; padding: 10px 20px;
+        }
+
+        .slot {
+            border: 1px dashed #444; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; transition: 0.3s;
+            font-size: 0.65rem; color: #555; text-align: center;
+        }
+
+        .slot.weapon-type { border-color: var(--blood); background: var(--weapon-slot); }
+        .slot.upgrade-type { border-color: var(--drow-violet); background: var(--upgrade-slot); }
+
+        .equipped-card {
+            width: 95%; height: 90%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 3px; cursor: pointer; color: white; font-weight: bold;
+            font-size: 0.7rem; position: relative; animation: fadeIn 0.3s;
+            padding: 2px; text-align: center;
+        }
+
+        .equipped-card.weapon { background: var(--blood); border: 1px solid #ff4444; }
+        .equipped-card.upgrade { background: var(--drow-violet); border: 1px solid #b366ff; }
+
+        .del-btn { position: absolute; top: -5px; right: -5px; background: #000; color: white; border: 1px solid #fff; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 10px; z-index: 10; display:flex; align-items:center; justify-content:center; }
+        .del-btn::before { content: '✕'; }
+
+        #info-panel {
+            height: 130px; background: var(--panel); border-top: 2px solid var(--gold);
+            padding: 15px 25px; display: flex; gap: 30px;
+            font-size: 0.9rem; color: #ccc;
+        }
+
+        .info-title { color: var(--gold); font-weight: bold; font-family: 'Georgia', serif; font-size: 1.1rem; margin-bottom: 5px; }
+        .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 15px; }
+        .info-label { color: #888; text-transform: uppercase; font-size: 0.9rem; }
+
+        /* EFECTOS */
+        .shake { animation: shakeAnim 0.4s; }
+        @keyframes shakeAnim {
+            0% { transform: translate(1px, 1px); }
+            20% { transform: translate(-3px, 0px); }
+            40% { transform: translate(3px, 2px); }
+            60% { transform: translate(-1px, -1px); }
+            80% { transform: translate(-3px, 1px); }
+            100% { transform: translate(0, 0); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>Astilleros Navales</h2>
+    
+    <label style="font-size: 0.8rem; color: #888;">BARCO SELECCIONADO</label>
+    <select id="shipSelector" onchange="changeShip()" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; margin-bottom:10px;">
+        <option value="caravel">Carabela (Caravel)</option>
+        <option value="coaster">Bajel de Cabotaje (Coaster)</option>
+        <option value="cog">Barco de Quilla (Cog)</option>
+        <option value="longship">Barcoluengo (Longship)</option>
+        <option value="sailing">Velero (Sailing Ship)</option>
+        <option value="warship">Barco de Guerra (Warship)</option>
+    </select>
+
+    <div class="btn-group">
+        <button class="btn-save" onclick="saveToStorage()">💾 Guardar</button>
+        <button class="btn-danger" onclick="clearDeck()">🧹 Limpiar Cubierta</button>
+    </div>
+
+    <div class="stat-card">
+        <h3 id="shipName" style="margin:0; font-size: 1rem;">-</h3>
+        <div class="stat-grid">
+            <span>Velocidad:</span> <span class="stat-val" id="val-speed">0</span>
+            <span>CA:</span> <span class="stat-val" id="val-ac">0</span>
+            <span>Puntos de Golpe:</span> <span class="stat-val" id="val-hp">0</span>
+            <span>Umbral de Daño:</span> <span class="stat-val" id="val-threshold">0</span>
+            <span>Espacios de Arma:</span> <span class="stat-val" id="val-slots" style="color:var(--blood)">0</span>
+        </div>
+        <div class="stat-grid" style="border-top: 1px solid #333; margin-top: 10px; padding-top: 5px;">
+            <span>Tripulación:</span> <span class="stat-val" id="val-crew">0</span>
+            <span>Pasajeros:</span> <span class="stat-val" id="val-pass">0</span>
+            <span>Carga (tons):</span> <span class="stat-val" id="val-cargo">0</span>
+        </div>
+    </div>
+
+    <h3>Armamento</h3>
+    <div id="weaponList"></div>
+
+    <h3 style="margin-top:20px;">Mejoras</h3>
+    <div id="upgradeList"></div>
+</div>
+
+<div id="main-content">
+    <div id="hp-hud">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: Georgia; color: var(--gold); font-size: 0.9rem;">INTEGRIDAD</span>
+            <span id="hp-text" style="font-weight: bold; font-size: 0.8rem;">0 / 0</span>
+        </div>
+        <div class="hp-bar-container">
+            <div id="hp-bar-fill"></div>
+        </div>
+        <div class="hp-controls">
+            <input type="number" id="hp-mod" class="hp-input" placeholder="Cant.">
+            <button onclick="modifyHP(-1)" style="background: #400; color: #ff4444;">DAÑO</button>
+            <button onclick="modifyHP(1)" style="background: #040; color: #44ff44;">REP.</button>
+        </div>
+    </div>
+
+    <div id="ship-image-container">
+        <img id="shipImg" src="" alt="Mapa del barco">
+    </div>
+
+    <div id="slots-row"></div>
+
+    <div id="info-panel">
+        <div style="flex-grow: 1;" id="info-content">
+            <p style="color:#555; text-align:center; margin-top:20px;">Arrastra un objeto a los slots o haz clic para ver detalles.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHIPS = {
+        caravel: { name: "Carabela", ac: 15, hp: 200, threshold: 15, speed: 2, slots: 3, crew: "10", pass: 10, cargo: 100, img: "caravel-deck.jpg" },
+        coaster: { name: "Bajel de Cabotaje", ac: 15, hp: 200, threshold: 15, speed: 2, slots: 1, crew: "10", pass: 10, cargo: 100, img: "coaster-deck.jpg" },
+        cog: { name: "Barco de Quilla", ac: 15, hp: 100, threshold: 15, speed: 2, slots: 1, crew: "4", pass: 10, cargo: 40, img: "cog-deck.jpg" },
+        longship: { name: "Barcoluengo", ac: 15, hp: 300, threshold: 15, speed: 3, slots: 2, crew: "20", pass: 10, cargo: 10, img: "longship-deck.jpg" },
+        sailing: { name: "Velero", ac: 15, hp: 300, threshold: 15, speed: 2, slots: 3, crew: "20", pass: 20, cargo: 100, img: "sailing-deck.jpg" },
+        warship: { name: "Barco de Guerra", ac: 15, hp: 500, threshold: 20, speed: 3, slots: 10, crew: "30", pass: 30, cargo: 200, img: "warship-deck.jpg" }
+    };
+
+    const WEAPONRY = [
+        { name: "Balista (15 CA)", cost: 500, hp: 50, toHit: "+6", dmg: "3d10 perforante", range: "120/480", actions: "cargar, apuntar, disparar" },
+        { name: "Cañón (19 CA)", cost: 2500, hp: 75, toHit: "+6", dmg: "8d10 contundente", range: "600/800 (no menos de 60 pies)", actions: "cargar, apuntar, disparar" },
+        { name: "Ariete (15 CA)", cost: 300, hp: 100, toHit: "+8", dmg: "3d10 contundente", range: "5 pies", actions: "atacar" },
+        { name: "Scorpio (15 CA)", cost: 150, hp: 30, toHit: "+5", dmg: "2d10 perforante", range: "120/360", actions: "cargar, disparar" }
+    ];
+
+    const UPGRADES = [
+        { id: "casco", name: "Casco Reforzado (+1 CA)", cost: 200, time: "10 días", result: "-1 mph velocidad" },
+        { id: "materiales", name: "Mejora de Materiales (+10 HP)", cost: 100, time: "10 días", result: "Mayor resistencia" },
+        { id: "velas", name: "Velas de Seda (+1 MPH)", cost: 50, time: "5 días", result: "Ventaja en maniobrabilidad" },
+        { id: "slot", name: "Slot Extra en Armas (+1 SLOT)", cost: 200, time: "10 días", result: "+1 espacio de arma" },
+        { id: "lujo", name: "Camarotes de Lujo (ESTILO DE VIDA)", cost: 500, time: "20 días", result: "Estilo de vida rico o aristocrático a bordo" }
+    ];
+
+    let currentShipKey = 'caravel';
+    let equippedItems = {}; 
+    let shipHPs = {}; // Guardaremos la vida por cada barco
+
+    function init() {
+        renderLists();
+        loadFromStorage();
+        updateUI(); 
+    }
+
+    function renderLists() {
+        const wDiv = document.getElementById('weaponList');
+        const uDiv = document.getElementById('upgradeList');
+        WEAPONRY.forEach(w => wDiv.appendChild(createDraggable(w, 'weapon')));
+        UPGRADES.forEach(u => uDiv.appendChild(createDraggable(u, 'upgrade')));
+    }
+
+    function createDraggable(data, type) {
+        const div = document.createElement('div');
+        div.className = 'draggable-item';
+        div.innerHTML = `<span>${data.name}</span> <span style="color:var(--gold); font-size:0.7rem;">${data.cost} po</span>`;
+        div.draggable = true;
+        div.ondragstart = (e) => e.dataTransfer.setData("text", JSON.stringify({data, type}));
+        div.onclick = () => showInfo(data, type);
+        return div;
+    }
+
+    function changeShip() {
+        currentShipKey = document.getElementById('shipSelector').value;
+        const stats = calculateStats();
+        // Si el barco nuevo no tiene vida guardada, se inicia al máximo
+        if (shipHPs[currentShipKey] === undefined) {
+            shipHPs[currentShipKey] = stats.hp;
+        }
+        updateUI();
+        saveToStorage();
+    }
+
+    function calculateStats() {
+        const base = SHIPS[currentShipKey];
+        let final = { ...base };
+        const items = equippedItems[currentShipKey] || [];
+
+        items.forEach(item => {
+            if (item && item.type === 'upgrade') {
+                if (item.data.id === 'casco') final.ac += 1;
+                if (item.data.id === 'materiales') final.hp += 10;
+                if (item.data.id === 'velas') final.speed += 1;
+                if (item.data.id === 'slot') final.slots += 1;
+            }
+        });
+        return final;
+    }
+
+    function updateUI() {
+        const stats = calculateStats();
+        
+        document.getElementById('shipName').innerText = stats.name;
+        document.getElementById('val-ac').innerText = stats.ac;
+        document.getElementById('val-hp').innerText = stats.hp;
+        document.getElementById('val-speed').innerText = stats.speed + " mph";
+        document.getElementById('val-threshold').innerText = stats.threshold;
+        document.getElementById('val-slots').innerText = stats.slots;
+        document.getElementById('val-crew').innerText = stats.crew;
+        document.getElementById('val-pass').innerText = stats.pass;
+        document.getElementById('val-cargo').innerText = stats.cargo;
+        document.getElementById('shipImg').src = stats.img;
+
+        // Asegurar que la vida actual no exceda el máximo si se quitaron mejoras
+        if (shipHPs[currentShipKey] > stats.hp) shipHPs[currentShipKey] = stats.hp;
+        // Si por alguna razón es undefined tras carga inicial
+        if (shipHPs[currentShipKey] === undefined) shipHPs[currentShipKey] = stats.hp;
+
+        updateHPBar(stats.hp);
+        renderSlots(stats.slots);
+    }
+
+    function updateHPBar(maxHP) {
+        const fill = document.getElementById('hp-bar-fill');
+        const text = document.getElementById('hp-text');
+        const current = shipHPs[currentShipKey];
+        const pct = (current / maxHP) * 100;
+        
+        fill.style.width = Math.max(0, pct) + "%";
+        text.innerText = `${current} / ${maxHP}`;
+
+        const hud = document.getElementById('hp-hud');
+        const container = document.getElementById('ship-image-container');
+
+        if (pct < 30) {
+            // Resplandor anaranjado intenso
+            hud.style.borderColor = "#ff4400";
+            container.style.boxShadow = "inset 0 0 80px rgba(255, 68, 0, 0.6)";
+        } else if (pct < 60) {
+            // Resplandor suave
+            hud.style.borderColor = "#d4af37";
+            container.style.boxShadow = "inset 0 0 40px rgba(212, 175, 55, 0.3)";
+        } else {
+            hud.style.borderColor = "var(--gold)";
+            container.style.boxShadow = "none";
+        }
+    }
+
+    function modifyHP(sign) {
+        const mod = parseInt(document.getElementById('hp-mod').value) || 0;
+        const stats = calculateStats();
+        
+        shipHPs[currentShipKey] += (mod * sign);
+        
+        if (shipHPs[currentShipKey] > stats.hp) shipHPs[currentShipKey] = stats.hp;
+        if (shipHPs[currentShipKey] < 0) shipHPs[currentShipKey] = 0;
+
+        if (sign < 0 && mod > 0) {
+            document.getElementById('main-content').classList.add('shake');
+            setTimeout(() => document.getElementById('main-content').classList.remove('shake'), 400);
+        }
+
+        updateHPBar(stats.hp);
+        saveToStorage();
+    }
+
+    function renderSlots(limit) {
+        const row = document.getElementById('slots-row');
+        row.innerHTML = '';
+        const savedSlots = equippedItems[currentShipKey] || Array(10).fill(null);
+
+        for(let i=0; i<10; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            const isWeapon = (i < limit);
+            slot.classList.add(isWeapon ? 'weapon-type' : 'upgrade-type');
+            slot.dataset.index = i;
+            slot.dataset.allowed = isWeapon ? 'weapon' : 'upgrade';
+            
+            if (savedSlots[i]) {
+                addCardToSlot(slot, savedSlots[i].data, savedSlots[i].type);
+            } else {
+                slot.innerHTML = `<span>${isWeapon ? 'W' : 'U'}-${i+1}</span>`;
+            }
+            slot.ondragover = (e) => e.preventDefault();
+            slot.ondrop = handleDrop;
+            row.appendChild(slot);
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const {data, type} = JSON.parse(e.dataTransfer.getData("text"));
+        const slot = e.target.closest('.slot');
+        const idx = slot.dataset.index;
+        
+        if (slot.dataset.allowed !== type) {
+            alert(`Error: Slot reservado para ${slot.dataset.allowed === 'weapon' ? 'Armas' : 'Mejoras'}.`);
+            return;
+        }
+
+        if (!equippedItems[currentShipKey]) equippedItems[currentShipKey] = Array(10).fill(null);
+        equippedItems[currentShipKey][idx] = {data, type};
+        
+        updateUI();
+        saveToStorage();
+    }
+
+    function addCardToSlot(slot, data, type) {
+        slot.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = `equipped-card ${type}`;
+        card.innerHTML = `<span>${data.name}</span><button class="del-btn" onclick="removeEquip(event)"></button>`;
+        card.onclick = (ev) => { ev.stopPropagation(); showInfo(data, type); };
+        slot.appendChild(card);
+    }
+
+    function removeEquip(e) {
+        e.stopPropagation();
+        const slot = e.target.closest('.slot');
+        const idx = slot.dataset.index;
+        equippedItems[currentShipKey][idx] = null;
+        updateUI();
+        saveToStorage();
+    }
+
+    function showInfo(data, type) {
+        const info = document.getElementById('info-content');
+        if (type === 'weapon') {
+            info.innerHTML = `<div class="info-title">⚔️ ${data.name}</div>
+                <div class="info-grid">
+                    <span class="info-label">Daño</span><span>${data.dmg} (${data.toHit})</span>
+                    <span class="info-label">Alcance</span><span>${data.range}</span>
+                    <span class="info-label">Acciones</span><span style="color:var(--gold)">${data.actions}</span>
+                </div>`;
+        } else {
+            info.innerHTML = `<div class="info-title">✨ ${data.name}</div>
+                <div class="info-grid">
+                    <span class="info-label">Coste</span><span>${data.cost} po</span>
+					<span class="info-label">Tiempo</span><span style="color:#00d4ff">${data.time}</span>
+                    <span class="info-label">Efecto</span><span style="color:#ffcc00">${data.result}</span>
+                </div>`;
+        }
+    }
+
+    function clearDeck() {
+        if(confirm("¿Seguro que quieres limpiar todos los slots de este barco?")) {
+            equippedItems[currentShipKey] = Array(10).fill(null);
+            updateUI();
+            saveToStorage();
+        }
+    }
+
+    function saveToStorage() {
+        localStorage.setItem('ship_architect_v3_final', JSON.stringify({
+            currentShipKey, 
+            equippedItems, 
+            shipHPs 
+        }));
+    }
+
+    function loadFromStorage() {
+        const saved = localStorage.getItem('ship_architect_v3_final');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            currentShipKey = parsed.currentShipKey || 'caravel';
+            equippedItems = parsed.equippedItems || {};
+            shipHPs = parsed.shipHPs || {};
+            document.getElementById('shipSelector').value = currentShipKey;
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>

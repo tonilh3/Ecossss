@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leyendas de Faerûn - El rincón de Salty</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --card-bg: rgba(15, 23, 42, 0.8);
+            --accent: #c2a65a; /* Oro DnD */
+            --text-main: #f8fafc;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100%;
+            overflow-x: hidden;
+        }
+
+        /* --- FONDO DINÁMICO --- */
+        #map-wrapper {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            background: #000;
+        }
+
+        #map-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Asegura que la imagen cubra toda la pantalla */
+            transition: opacity 0.6s ease, filter 0.4s ease;
+            opacity: 0.5;
+        }
+
+        #map-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.9) 100%);
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        /* --- UI CONTROLS --- */
+        .toggle-map {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 1000;
+            background: var(--card-bg);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 10;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            transition: opacity 0.4s ease;
+        }
+
+        .ui-hidden { opacity: 0; pointer-events: none !important; }
+        .map-bright { opacity: 1 !important; filter: brightness(1.1) !important; }
+        .overlay-hidden { opacity: 0 !important; }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            background: rgba(10, 15, 30, 0.7);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        header h1 { margin: 5px 0 0 0; font-size: 2rem; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+
+        .section-header { 
+            color: var(--accent);
+            display: flex; align-items: center; gap: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* --- GRID DE LIBROS --- */
+        .grid-books {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .book-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(194, 166, 90, 0.2);
+            padding: 20px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(8px);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .book-card:hover { 
+            border-color: var(--accent); 
+            background: rgba(194, 166, 90, 0.15); 
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        }
+
+        .book-card i { color: var(--accent); font-size: 32px; }
+        .book-name { font-weight: 600; font-size: 0.85rem; color: #fff; line-height: 1.2; }
+
+        /* --- PANEL DE LECTURA OPTIMIZADO --- */
+        #detail-view {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(to top, #050810 80%, rgba(10, 15, 30, 0.9) 100%);
+            padding: 20px 30px; /* Padding reducido para ganar ancho */
+            border-top: 3px solid var(--accent);
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1100;
+            max-height: 30vh; /* Altura reducida para dejar ver más imagen arriba */
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        #detail-view.active { transform: translateY(0); }
+
+        .close-btn { 
+            background: var(--accent); 
+            color: #000; 
+            padding: 5px 12px; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            float: right; 
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            position: sticky; /* El botón se queda visible al hacer scroll */
+            top: 0;
+        }
+
+        #detail-text {
+            color: #e2e8f0;
+            line-height: 1.6;
+            font-size: 1.05rem;
+            width: 100%;       /* Ocupa todo el ancho */
+            max-width: none;   /* Eliminamos la restricción de 800px */
+            margin: 10px 0;
+            white-space: pre-wrap;
+            text-align: justify; /* Opcional: para que los bordes queden rectos */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-wrapper">
+        <img src="salty---el-vendedor-de-libros.jpg" id="map-image">
+    </div>
+
+    <div id="map-overlay"></div>
+
+    <button class="toggle-map" onclick="toggleUI()">
+        <span class="material-icons" id="map-icon">visibility_off</span>
+    </button>
+
+    <div class="app-container" id="main-ui">
+        <header>
+            <p style="color: #cbd5e1; font-size: 0.7rem; letter-spacing: 4px; margin:0; text-transform: uppercase; padding-top: 20px;">Colección de Tomos Raros</p>
+            <h1>Leyendas de Faerûn</h1>
+        </header>
+
+        <div class="section-header">
+             <span class="material-icons">auto_stories</span> Libros Disponibles
+        </div>
+
+        <div class="grid-books">
+            <div class="book-card" onclick="openBook('La Leyenda de Caer Allisynn', 'Cuenta la leyenda que un majestuoso castillo submarino fue construido por un antiguo rey de los Moonshaes para su amada esposa, quien pereció durante una guerra hace cientos de años. Si bien Caer Allisynn es normalmente un reino submarino ajeno a los Reinos Mortales, ocasionalmente emerge del océano cuando el clima es propicio en busca del calor del sol. Muchos lo han buscado sin éxito, aunque algunos marinos cuentan que el castillo se encuentra entre las islas de Norland, Alaron y la Isla de Omán, en el relativamente poco profundo Mar de Moonshae. Solo en los días claros se puede apreciar el difuminado contorno del castillo bajo las olas.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">1. La Leyenda de Caer Allisynn</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('Narino', 'Cuenta la leyenda que en Narino los tritones que allí vivían fueron en su día una sociedad de ricos mercaderes que comerciaban perlas y corales con los habitantes de Mintarn, así como con los de Aguas Profundas y Neverwinter. Sin embargo, tras la caída en desgracia de Mintarn, el asentamiento entró en decadencia. Sin comercio que los sustentara, cada vez más sirénidos y sirénidas lo abandonaron para no regresar. Aunque no solo la decadencia se asentó en Narino, historias de marineros narran que un barco que cruzaba las olas sobre la ciudad dejó caer un ataúd por la borda, que posteriormente se posó en el centro del lecho marino del mercado submarino, y fuese lo que fuese lo que salió de él, se alimentó vorazmente de las pocas sirenas que quedaban y nunca jamás se supo del enclave tritón. Muchos lo han buscado sin éxito, aunque cuentan que la ciudad submarina abandonada. se encuentra al sur de Mintarn. Solo los intrépidos que se sumerjan pueden apreciar el palacio excavado en una enorme roca cubierta de conchas, corales y anémonas.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">2. Narino</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('La Isla de Omán', 'Cuenta la leyenda que la Isla de Omán es un lugar devastado por una terrible maldición, controlado por fomorianos que lanzan enormes piedras a cualquier barco que se acerque demasiado a la costa. La isla alberga las Ruinas de la Fortaleza de Hierro, antaño hogar de los gobernantes de la isla, un lugar codiciado tanto por Norland, como por Alaron. Actualmente, la isla se encuentra bajo la vigilancia y protección de los Norls, ya que los peligros que alberga y los tesoros de Héroes Norteños del pasado, como Thelgarr Mano de Hierro, yacen escondidos en el interior de su selva. La isla está preservada de la codicia del hombre. Además, la isla cuenta con otra riqueza, ya que posee un Pozo Lunar. Muchos han intentado descifrar sus secretos y encontrar las tumbas olvidadas de los Héroes, aunque sin éxito. Es sabido que solo los grandes reyes Norls conocen la ubicación exacta de los túmulos y solo revelarán el secreto a un campeón digno.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">3. La Isla de Omán</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('La Infame Bruja del Mar - Wreck of the Sea Witch', 'Cuenta la leyenda que La infame Bruja del Mar naufragó en algún lugar de la costa occidental de Ioma, y muchos buscatesoros han intentado encontrarla desde entonces. La Bruja del Mar era conocida por su dotación de lanzadores de hechizos, este personal le permitió a la Capitana, Mala Ravenstar, emplear diversas tácticas diabólicas contra sus enemigos e infundir el terror en el corazón de los hombres. Todos asumen que la bodega del barco hundido debe estar repleta de tesoros mágicos.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">4. La Infame Bruja del Mar</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('Ruinas de Ascarle', 'Cuenta la leyenda que hace eones, los elfos lunares construyeron una ciudad llamada Ascarle. Construyeron la ciudad con coral y cristal de los océanos, pues veneraban al dios Deep Sashelas por encima de todos los demás. Durante muchos siglos, los elfos vivieron en paz en su isla natal, cultivando un estilo arquitectónico y artístico único con los materiales que les proporcionaba el océano. Desafortunadamente, la paz no podía durar para siempre. La noticia de la rica ciudad se extendió entre los Drow que habitaban la Infraoscuridad, quienes vieron la oportunidad de atacar una ciudad élfica desprevenida y reclamar sus tesoros. Motivados por el odio acérrimo de Lolth, los Drow saquearon la ciudad con crueldad, matando a muchos elfos y esclavizando al resto. Los Drows lograron profanar muchos de los santuarios dedicados a Deep Sashelas. Además, inundaron las cámaras con agua de mar, impidiéndoles entrar en su templo más sagrado, en el subsuelo de la ciudad, acabando con Shava, su gran sacerdotisa. Tras pasar menos de una década en la ciudad caída, los drows regresaron a la oscuridad de la Infraoscuridad para no regresar. Todos asumen que la entrada de la verdadera Ascarle se perdió en el tiempo o si simplemente jamás existió.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">5. Ruinas de Ascarle</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('Concentración en los conjuros - incluso más allá de la muerte', 'Cuenta la leyenda que mediante oscuros rituales se pueden utilizar, como componentes de hechizos, los cerebros de lanzadores de conjuros asesinados. Cada uno de estos cerebros se concentra en un único conjuro y se deben conservar en frascos que los mantengan vivos, permitiéndoles mantener la concentración en sus conjuros hasta que son destruidos. Es sabido que muchos Lich recomiendan los vasos canopos para tal fin. Algo pequeño que pueda ser fácilmente ocultado. ya que infligir daño a un frasco, al cerebro que contiene, o lanzar disipar magia sobre el frasco, hace que la concentración del cerebro termine.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">6. Concentración en los conjuros</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('La Presencia Enloquecedora de Berranzo', 'Cuenta la leyenda que algo sobrenaturalmente siniestro se encuentra en las minas de Berranzo. La colonia calishita cavó demasiado profundo y liberó un antiguo e incognoscible horror que reside en las profundidades de la Isla de Gundarlun. Aunque es seguro permanecer en las minas por un corto periodo de tiempo, pasar largos periodos en las minas puede volver loca a una criatura. Jamás se volvieron a abrir las minas y jamás se volvió a pronunciar el nombre de Berranzo.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">7. La Presencia de Berranzo</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('Ruinas de los Reinos Olvidados', 'Cuenta la leyenda que los aventureros que se encuentran con una pequeña ruina: ya sea los restos de una torre de magos, una mina enana en ruinas, un fuerte trasgo abandonado, una ciudad élfica acuática destruida bajo las olas o un pecio hundido. Si acampan ahí, y las ruinas no están ocupadas, además de completar un Descanso Prolongado reparador, es muy probable que sea de esos tesoros naturales que alberguen una riqueza oculta en su interior.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">8. Ruinas de los Reinos Olvidados</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('La Maldición de la Torre del Mar de Irphong', 'Cuenta la leyenda que algo sobrenaturalmente siniestro se encuentra en la Torre del Mar de Irphong. Sobresaliendo de una isla rocosa llamada Irphong se encuentra una torre marina de piedra, solo una más de las varias estructuras extrañas que se encuentran por los Nelanthers. Muchos han especulado sobre el propósito de estas torres y por qué aparecen luces en sus cimas en los últimos años, pero pocos conocen la realidad. También abundan los rumores en los Nelanthers sobre solicitudes de piratas y esclavistas para llevar niños neonatos de no más de un mes a la Torre Marina de Irphong, donde, al parecer, reciben una generosa recompensa por su cargamento. Se pueden encontrar piratas que han realizado este oficio tanto en Ioma Town como en el Puerto de Skaug, aunque no todos están dispuestos a admitirlo y acallan los llantos de las criaturas con grandes cantidades de grog.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">9. Torre de Irphong</span>
+            </div>
+
+            <div class="book-card" onclick="openBook('La Caída en Desgracia de Mintarn', 'No hace mucho, Mintarn rebosaba de dinero gracias a la compañía de construcción naval Velas Blancas de Dagult Neverember, y a su fortuna que fluía a través de Aguas Profundas. Además, Neverember comenzó a contratar mercenarios de Mintarn para reforzar las filas de la Guardia de Neverwinter. Desafortunadamente, el peso de todo ese oro en la isla despertó a Hoondarrh, la Furia Roja de Mintarn, un antiguo dragón rojo al que los norteños rinden tributo anual. A pesar de su diezmo, Hoondarrh quería más y arrasó el Castillo Mintarn para dejarlo claro. Los habitantes de Mintarn se apresuraron a satisfacer las demandas de la impaciente sierpe y poco pudieron hacer para resistir, ya que sus soldados servían en ejércitos extranjeros. Desde aquel fatídico día y el exilio de Neverember de Aguas Profundas, las cosas no han ido a mejor para Mintarn. El lugar aún conserva muchas posadas acogedoras y una abundancia de su brillante vino verde, pero los lugareños empiezan a desesperarse con las peticiones de su tiránico amo. Circulan tímidos rumores sobre los inmensos tesoros que se ocultan en su cavernosa guarida de la montaña Skadaurak en Mintarn, pero no hay hombre vivo que los haya visto y haya regresado para contarlo.')">
+                <i class="material-icons">menu_book</i>
+                <span class="book-name">10. La Caída de Mintarn</span>
+            </div>
+        </div>
+        
+        <div style="height: 150px;"></div>
+    </div>
+
+    <div id="detail-view">
+        <div class="close-btn" onclick="closeBook()">Cerrar Libro</div>
+        <h2 id="detail-title" style="margin-top:0; color:var(--accent); font-family: serif; letter-spacing: 1px;"></h2>
+        <div id="detail-text"></div>
+    </div>
+
+    <script>
+        function toggleUI() {
+            const ui = document.getElementById('main-ui');
+            const map = document.getElementById('map-image');
+            const overlay = document.getElementById('map-overlay');
+            const icon = document.getElementById('map-icon');
+            
+            ui.classList.toggle('ui-hidden');
+            map.classList.toggle('map-bright');
+            overlay.classList.toggle('overlay-hidden');
+            
+            icon.innerText = ui.classList.contains('ui-hidden') ? 'visibility' : 'visibility_off';
+        }
+
+        const bookImages = {
+            "La Leyenda de Caer Allisynn": "la-leyenda-de-caer-allisynn.jpg",
+            "Narino": "narino.jpg",
+            "La Isla de Omán": "la-isla-de-oman.jpg",
+            "La Infame Bruja del Mar - Wreck of the Sea Witch": "lainfamebrujadelmar-wreckoftheseawitch.jpg",
+            "Ruinas de Ascarle": "ruinas-de-ascarle.jpg",
+            "Concentración en los conjuros - incluso más allá de la muerte": "concentracion-en-los-conjuros-incluso-mas-alla-de-la-muerte.jpg",
+            "La Presencia Enloquecedora de Berranzo": "la-presencia-enloquecedora-de-berranzo.jpg",
+            "Ruinas de los Reinos Olvidados": "ruinas-de-los-reinos-olvidados.jpg",
+            "La Maldición de la Torre del Mar de Irphong": "la-maldicion-de-la-torre-del-mar-de-irphong.jpg",
+            "La Caída en Desgracia de Mintarn": "la-caida-en-desgracia-de-mintarn.jpg"
+        };
+
+        function openBook(title, text) {
+            // 1. Cambiar el texto del panel
+            document.getElementById('detail-title').innerText = title;
+            document.getElementById('detail-text').innerText = text;
+            
+            // 2. Cambiar la imagen de fondo dinamicamente con rutas reales del repo
+            const mapImage = document.getElementById('map-image');
+            mapImage.style.opacity = "0"; // Efecto de fundido
+            
+            setTimeout(() => {
+                mapImage.src = bookImages[title] || "salty---el-vendedor-de-libros.jpg";
+                mapImage.style.opacity = "0.5";
+            }, 300);
+
+            // 3. Mostrar el panel
+            document.getElementById('detail-view').classList.add('active');
+        }
+
+        function closeBook() {
+            document.getElementById('detail-view').classList.remove('active');
+            /*
+            // Opcional: Volver a la imagen de Salty al cerrar
+            const mapImage = document.getElementById('map-image');
+            mapImage.style.opacity = "0";
+            setTimeout(() => {
+                mapImage.src = "salty---el-vendedor-de-libros.jpg";
+                mapImage.style.opacity = "0.5";
+            }, 300);
+			*/
+        }
+    </script>
+</body>
+</html>

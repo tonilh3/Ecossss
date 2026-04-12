@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suministros Generales - El rincón de Salty</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --card-bg: rgba(15, 23, 42, 0.8);
+            --accent: #c2a65a; /* Oro DnD */
+            --accent-dim: rgba(194, 166, 90, 0.2);
+            --text-main: #f8fafc;
+            --text-muted: #cbd5e1;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100%;
+            overflow-x: hidden;
+        }
+
+        /* --- FONDO DINÁMICO --- */
+        #map-wrapper {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            background: #000;
+        }
+
+        #map-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.6s ease, filter 0.4s ease;
+            opacity: 0.5;
+        }
+
+        #map-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.9) 100%);
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        /* --- UI CONTROLS --- */
+        .toggle-map {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 1000;
+            background: var(--card-bg);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 10;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            transition: opacity 0.4s ease;
+        }
+
+        .ui-hidden { opacity: 0; pointer-events: none !important; }
+        .map-bright { opacity: 1 !important; filter: brightness(1.1) !important; }
+        .overlay-hidden { opacity: 0 !important; }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            background: rgba(10, 15, 30, 0.7);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        header h1 { margin: 5px 0 0 0; font-size: 2rem; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+
+        .section-header { 
+            color: var(--accent);
+            display: flex; align-items: center; gap: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* --- GRID DE CATEGORÍAS --- */
+        .grid-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .category-card {
+            background: var(--card-bg);
+            border: 1px solid var(--accent-dim);
+            padding: 25px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            backdrop-filter: blur(8px);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .category-card:hover { 
+            border-color: var(--accent); 
+            background: rgba(194, 166, 90, 0.15); 
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        }
+
+        .category-card i { color: var(--accent); font-size: 42px; }
+        .category-name { font-weight: 600; font-size: 1.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+        .category-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* --- PANEL DE LECTURA (TABLAS) --- */
+        #detail-view {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(to top, #050810 85%, rgba(10, 15, 30, 0.95) 100%);
+            padding: 20px 40px;
+            border-top: 3px solid var(--accent);
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1100;
+            max-height: 60vh; /* Un poco más alto para las tablas */
+            overflow-y: auto;
+            box-sizing: border-box;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+
+        #detail-view.active { transform: translateY(0); }
+
+        .close-btn { 
+            background: var(--accent); color: #000; 
+            padding: 6px 14px; border-radius: 4px; 
+            font-weight: bold; float: right; cursor: pointer;
+            text-transform: uppercase; font-size: 0.75rem;
+            position: sticky; top: 0; z-index: 10;
+        }
+
+        /* --- ESTILOS DE TABLAS D&D --- */
+        .desc-text { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; font-style: italic; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+            color: #e2e8f0;
+        }
+
+        th, td {
+            padding: 10px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        th {
+            background-color: var(--accent-dim);
+            color: var(--accent);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
+        }
+
+        tr:hover td { background-color: rgba(255,255,255,0.05); }
+
+        /* Destacar Precio */
+        .col-price {
+            color: var(--accent);
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        /* Destacar Daño/CA */
+        .col-stat {
+            font-weight: bold;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-wrapper">
+        <img src="mod-weapons-midjourney.jpg" id="map-image">
+    </div>
+
+    <div id="map-overlay"></div>
+
+    <button class="toggle-map" onclick="toggleUI()">
+        <span class="material-icons" id="map-icon">visibility_off</span>
+    </button>
+
+    <div class="app-container" id="main-ui">
+        <header>
+            <p style="color: #cbd5e1; font-size: 0.7rem; letter-spacing: 4px; margin:0; text-transform: uppercase; padding-top: 20px;">Manual del Jugador 5e 2014</p>
+            <h1>El Bazar del Aventurero</h1>
+        </header>
+
+        <div class="section-header">
+             <span class="material-icons">storefront</span> Catálogo de Productos
+        </div>
+
+        <div class="grid-categories">
+            <div class="category-card" onclick="openCategory('Armaduras y Escudos', 'tpl-armaduras')">
+                <i class="material-icons">security</i>
+                <span class="category-name">Armaduras</span>
+                <span class="category-desc">Protección ligera, media, pesada y escudos.</span>
+            </div>
+
+            <div class="category-card" onclick="openCategory('Armas', 'tpl-armas')">
+                <i class="material-icons">colorize</i>
+                <span class="category-name">Armas</span>
+                <span class="category-desc">Armas simples y marciales, cuerpo a cuerpo y a distancia.</span>
+            </div>
+
+            <div class="category-card" onclick="openCategory('Equipo de Aventurero', 'tpl-equipo')">
+                <i class="material-icons">backpack</i>
+                <span class="category-name">Equipo Básico</span>
+                <span class="category-desc">Mochilas, raciones, antorchas y suministros vitales.</span>
+            </div>
+
+            <div class="category-card" onclick="openCategory('Herramientas', 'tpl-herramientas')">
+                <i class="material-icons">handyman</i>
+                <span class="category-name">Herramientas</span>
+                <span class="category-desc">Útiles de artesano, juegos e instrumentos musicales.</span>
+            </div>
+
+            <div class="category-card" onclick="openCategory('Monturas y Vehículos', 'tpl-monturas')">
+                <i class="material-icons">pets</i>
+                <span class="category-name">Monturas</span>
+                <span class="category-desc">Caballos, bestias de carga, carros y embarcaciones.</span>
+            </div>
+
+            <div class="category-card" onclick="openCategory('Mercancías', 'tpl-mercancias')">
+                <i class="material-icons">paid</i>
+                <span class="category-name">Mercancías</span>
+                <span class="category-desc">Bienes de comercio, desde trigo hasta oro y especias.</span>
+            </div>
+			
+			<div class="category-card" onclick="openCategory('Herrería', 'tpl-herreria-especial')">
+                <i class="material-icons">hardware</i>
+                <span class="category-name">Herrería</span>
+                <span class="category-desc">Desde baños de plata hasta la forja de aleaciones legendarias.</span>
+            </div>
+			
+			<div class="category-card" onclick="openCategory('Forja de Conjuros', 'tpl-forja-magica')">
+                <i class="material-icons">auto_fix_high</i>
+                <span class="category-name">Forja de Conjuros</span>
+                <span class="category-desc">Creación de objetos maravillosos, armas de leyenda y artefactos.</span>
+            </div>
+        </div>
+        
+        <div style="height: 150px;"></div>
+    </div>
+
+    <div id="detail-view">
+        <div class="close-btn" onclick="closeCategory()">Cerrar Catálogo</div>
+        <h2 id="detail-title" style="margin-top:0; color:var(--accent); font-family: serif; letter-spacing: 1px;"></h2>
+        <div id="detail-content"></div>
+    </div>
+
+    <template id="tpl-armaduras">
+        <p class="desc-text">La armadura protege a su portador de los ataques. El coste y el peso varían según los materiales y la forja.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Armadura</th>
+                    <th>Coste</th>
+                    <th>Clase de Armadura (CA)</th>
+                    <th>Fuerza</th>
+                    <th>Sigilo</th>
+                    <th>Peso</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="6" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armaduras Ligeras</td></tr>
+                <tr><td>Acolchada</td><td class="col-price">5 po</td><td class="col-stat">11 + mod. Des</td><td>—</td><td>Desventaja</td><td>8 lb.</td></tr>
+                <tr><td>Cuero</td><td class="col-price">10 po</td><td class="col-stat">11 + mod. Des</td><td>—</td><td>—</td><td>10 lb.</td></tr>
+                <tr><td>Cuero tachonado</td><td class="col-price">45 po</td><td class="col-stat">12 + mod. Des</td><td>—</td><td>—</td><td>13 lb.</td></tr>
+                
+                <tr><td colspan="6" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armaduras Medias</td></tr>
+                <tr><td>Pieles</td><td class="col-price">10 po</td><td class="col-stat">12 + mod. Des (máx 2)</td><td>—</td><td>—</td><td>12 lb.</td></tr>
+                <tr><td>Camisote de mallas</td><td class="col-price">50 po</td><td class="col-stat">13 + mod. Des (máx 2)</td><td>—</td><td>—</td><td>20 lb.</td></tr>
+				<tr><td>Cota de escamas</td><td class="col-price">50 po</td><td class="col-stat">14 + mod. Des (máx 2)</td><td>—</td><td>Desventaja</td><td>45 lb.</td></tr>
+                <tr><td>Coraza</td><td class="col-price">400 po</td><td class="col-stat">14 + mod. Des (máx 2)</td><td>—</td><td>—</td><td>20 lb.</td></tr>
+                <tr><td>Semiplacas</td><td class="col-price">750 po</td><td class="col-stat">15 + mod. Des (máx 2)</td><td>—</td><td>Desventaja</td><td>40 lb.</td></tr>
+                
+                <tr><td colspan="6" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armaduras Pesadas</td></tr>
+                <tr><td>Cota de anillas</td><td class="col-price">30 po</td><td class="col-stat">14</td><td>—</td><td>Desventaja</td><td>40 lb.</td></tr>
+                <tr><td>Cota de mallas</td><td class="col-price">75 po</td><td class="col-stat">16</td><td>Fue 13</td><td>Desventaja</td><td>55 lb.</td></tr>
+				<tr><td>Bandas</td><td class="col-price">200 po</td><td class="col-stat">17</td><td>Fue 15</td><td>Desventaja</td><td>60 lb.</td></tr>
+                <tr><td>Placas</td><td class="col-price">1.500 po</td><td class="col-stat">18</td><td>Fue 15</td><td>Desventaja</td><td>65 lb.</td></tr>
+                
+                <tr><td colspan="6" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Escudos</td></tr>
+                <tr><td>Escudo</td><td class="col-price">10 po</td><td class="col-stat">+2</td><td>—</td><td>—</td><td>6 lb.</td></tr>
+            </tbody>
+        </table>
+    </template>
+
+    <template id="tpl-armas">
+        <p class="desc-text">El daño de tus ataques depende del arma que empuñes. Asegúrate de tener competencia para sumar tu bonificador.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Coste</th>
+                    <th>Daño</th>
+                    <th>Peso</th>
+                    <th>Propiedades</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="5" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armas Cuerpo a Cuerpo Simples</td></tr>
+                <tr><td>Bastón</td><td class="col-price">2 pp</td><td class="col-stat">1d6 contundente</td><td>4 lb.</td><td>Versátil (1d8)</td></tr>
+				<tr><td>Daga</td><td class="col-price">2 po</td><td class="col-stat">1d4 perforante</td><td>1 lb.</td><td>Sutil, ligera, arrojadiza (20/60)</td></tr>
+                <tr><td>Gran clava</td><td class="col-price">2 pp</td><td class="col-stat">1d8 contundente</td><td>10 lb.</td><td>A 2 manos</td></tr>
+				<tr><td>Hacha de mano</td><td class="col-price">5 po</td><td class="col-stat">1d6 cortante</td><td>2 lb.</td><td>Arrojadiza (20/60), ligera</td></tr>
+				<tr><td>Hoz</td><td class="col-price">1 po</td><td class="col-stat">1d4 cortante</td><td>2 lb.</td><td>Ligera</td></tr>
+				<tr><td>Jabalina</td><td class="col-price">5 pp</td><td class="col-stat">1d6 perforante</td><td>2 lb.</td><td>Arrojadiza (30/120)</td></tr>
+				<tr><td>Lanza</td><td class="col-price">1 po</td><td class="col-stat">1d6 perforante</td><td>3 lb.</td><td>Arrojadiza (20/60), versátil (1d8)</td></tr>
+				<tr><td>Martillo ligero</td><td class="col-price">2 po</td><td class="col-stat">1d4 contundente</td><td>2 lb.</td><td>Arrojadiza (20/60), ligera</td></tr>
+				<tr><td>Maza</td><td class="col-price">5 po</td><td class="col-stat">1d6 contundente</td><td>4 lb.</td><td>—</td></tr>
+				<tr><td>Clava</td><td class="col-price">1 pp</td><td class="col-stat">1d4 contundente</td><td>2 lb.</td><td>Ligera</td></tr>
+                
+                <tr><td colspan="5" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armas a Distancia Simples</td></tr>
+                <tr><td>Arco corto</td><td class="col-price">25 po</td><td class="col-stat">1d6 perforante</td><td>2 lb.</td><td>Munición (80/320), a dos manos</td></tr>
+                <tr><td>Ballesta ligera</td><td class="col-price">25 po</td><td class="col-stat">1d8 perforante</td><td>5 lb.</td><td>Munición (80/320), recarga, a dos manos</td></tr>
+				<tr><td>Dardo</td><td class="col-price">5 pc</td><td class="col-stat">1d4 perforante</td><td>1/4 lb.</td><td>Arrojadiza (20/60)</td></tr>
+				<tr><td>Honda</td><td class="col-price">1 pp</td><td class="col-stat">1d4 contundente</td><td>—</td><td>Munición (30/120)</td></tr>
+                
+                <tr><td colspan="5" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armas Cuerpo a Cuerpo Marciales</td></tr>
+                <tr><td>Alabarda</td><td class="col-price">20 po</td><td class="col-stat">1d10 cortante</td><td>6 lb.</td><td>A 2 manos, alcance, pesada</td></tr>
+				<tr><td>Atarraga</td><td class="col-price">10 po</td><td class="col-stat">2d6 contundente</td><td>10 lb.</td><td>A 2 manos, pesada</td></tr>
+				<tr><td>Cimitarra</td><td class="col-price">25 po</td><td class="col-stat">1d6 cortante</td><td>3 lb.</td><td>Ligera, sutil</td></tr>
+				<tr><td>Espada corta</td><td class="col-price">10 po</td><td class="col-stat">1d6 perforante</td><td>2 lb.</td><td>Sutil, ligera</td></tr>
+                <tr><td>Espada larga</td><td class="col-price">15 po</td><td class="col-stat">1d8 cortante</td><td>3 lb.</td><td>Versátil (1d10)</td></tr>
+                <tr><td>Espadón o mandoble</td><td class="col-price">50 po</td><td class="col-stat">2d6 cortante</td><td>6 lb.</td><td>Pesada, a dos manos</td></tr>
+				<tr><td>Estoque</td><td class="col-price">25 po</td><td class="col-stat">1d8 perforante</td><td>2 lb.</td><td>Sutil</td></tr>
+				<tr><td>Hacha de batalla</td><td class="col-price">10 po</td><td class="col-stat">1d8 cortante</td><td>4 lb.</td><td>Versátil (1d10)</td></tr>
+				<tr><td>Gran hacha</td><td class="col-price">30 po</td><td class="col-stat">1d12 cortante</td><td>7 lb.</td><td>A 2 manos, pesada</td></tr>
+				<tr><td>Guja</td><td class="col-price">20 po</td><td class="col-stat">1d10 cortante</td><td>6 lb.</td><td>A 2 manos, alcance, pesada</td></tr>
+				<tr><td>Lanza de caballería</td><td class="col-price">10 po</td><td class="col-stat">1d12 perforante</td><td>6 lb.</td><td>Alcance, especial</td></tr>
+				<tr><td>Látigo</td><td class="col-price">2 po</td><td class="col-stat">1d4 cortante</td><td>3 lb.</td><td>Alcance, sutil</td></tr>
+				<tr><td>Lucero del alba</td><td class="col-price">15 po</td><td class="col-stat">1d8 perforante</td><td>4 lb.</td><td>—</td></tr>
+				<tr><td>Martillo de guerra</td><td class="col-price">15 po</td><td class="col-stat">1d8 contundente</td><td>2 lb.</td><td>Versátil (1d10)</td></tr>
+				<tr><td>Mayal</td><td class="col-price">10 po</td><td class="col-stat">1d8 contundente</td><td>2 lb.</td><td>—</td></tr>
+				<tr><td>Pica</td><td class="col-price">5 po</td><td class="col-stat">1d10 perforante</td><td>18 lb.</td><td>A 2 manos, alcance, pesada</td></tr>
+				<tr><td>Pica de guerra</td><td class="col-price">5 po</td><td class="col-stat">1d8 perforante</td><td>2 lb.</td><td>—</td></tr>
+				<tr><td>Tridente</td><td class="col-price">5 po</td><td class="col-stat">1d6 perforante</td><td>4 lb.</td><td>Arrojadiza (20/60), versátil</td></tr>
+                
+                <tr><td colspan="5" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Armas a Distancia Marciales</td></tr>
+                <tr><td>Arco largo</td><td class="col-price">50 po</td><td class="col-stat">1d8 perforante</td><td>2 lb.</td><td>Munición (150/600), pesada, a dos manos</td></tr>
+				<tr><td>Ballesta de mano</td><td class="col-price">75 po</td><td class="col-stat">1d6 perforante</td><td>3 lb.</td><td>Ligera, munición (30/120), recarga</td></tr>
+				<tr><td>Ballesta pesada</td><td class="col-price">50 po</td><td class="col-stat">1d10 perforante</td><td>18 lb.</td><td>A 2 manos, munición (100/400), pesada, recarga</td></tr>
+				<tr><td>Cerbatana</td><td class="col-price">10 po</td><td class="col-stat">1 perforante</td><td>1 lb.</td><td>Munición (25/100), recarga</td></tr>
+				<tr><td>Red</td><td class="col-price">1 po</td><td class="col-stat">—</td><td>3 lb.</td><td>Arrojadiza (5/15), especial</td></tr>
+			</tbody>
+        </table>
+    </template>
+
+    <template id="tpl-equipo">
+        <p class="desc-text">Utensilios básicos que mantienen a un aventurero con vida lejos de la civilización.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Objeto</th>
+                    <th>Coste</th>
+                    <th>Peso</th>
+                </tr>
+            </thead>
+            <tbody>
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Equipo de la A-E</td></tr>
+				<tr><td>Ábaco</td><td class="col-price">2 po</td><td>2 lb.</td></tr>
+				<tr><td>Abrojos (bolsa de 20)</td><td class="col-price">1 po</td><td>2 lb.</td></tr>
+				<tr><td>Aceite (frasco)</td><td class="col-price">1 pp</td><td>1 lb.</td></tr>
+				<tr><td>Ácido (vial)</td><td class="col-price">25 po</td><td>1 lb.</td></tr>
+				<tr><td>Agua bendita (frasco)</td><td class="col-price">25 po</td><td>1 lb.</td></tr>
+				<tr><td>Almádena</td><td class="col-price">2 po</td><td>10 lb.</td></tr>
+				<tr><td>Antídoto (vial)</td><td class="col-price">50 po</td><td>—</td></tr>
+				<tr><td>Antorcha</td><td class="col-price">1 pc</td><td>1 lb.</td></tr>
+				<tr><td>Aparejos de pesca</td><td class="col-price">1 po</td><td>4 lb.</td></tr>
+				<tr><td>Aparejo de poleas</td><td class="col-price">1 po</td><td>5 lb.</td></tr>
+				<tr><td>Ariete portátil</td><td class="col-price">4 po</td><td>35 lb.</td></tr>
+				<tr><td>Balanza de mercader</td><td class="col-price">5 po</td><td>3 lb.</td></tr>
+				<tr><td>Barril</td><td class="col-price">1 po</td><td>2 lb.</td></tr>
+				<tr><td>Rodamientos (bolsa de 1.000)</td><td class="col-price">1 po</td><td>2 lb.</td></tr>
+				<tr><td>Bolsa o zurrón</td><td class="col-price">5 pp</td><td>1 lb.</td></tr>
+				<tr><td>Bolsa de componentes</td><td class="col-price">25 po</td><td>2 lb.</td></tr>
+				<tr><td>Botella de cristal</td><td class="col-price">2 po</td><td>2 lb.</td></tr>
+				<tr><td>Cadena (10 pies)</td><td class="col-price">5 po</td><td>10 lb.</td></tr>
+				<tr><td>Cálamo</td><td class="col-price">2 pc</td><td>—</td></tr>
+				<tr><td>Campanilla</td><td class="col-price">1 po</td><td>—</td></tr>
+				<tr><td>Carcaj</td><td class="col-price">1 po</td><td>1 lb.</td></tr>
+				<tr><td>Catalejo</td><td class="col-price">1.000 po</td><td>1 lb.</td></tr>
+				<tr><td>Cerradura</td><td class="col-price">10 po</td><td>1 lb.</td></tr>
+				<tr><td>Cesta</td><td class="col-price">4 pp</td><td>2 lb.</td></tr>
+				<tr><td>Cofre</td><td class="col-price">5 po</td><td>25 lb.</td></tr>
+				<tr><td>Cubo</td><td class="col-price">5 pc</td><td>2 lb.</td></tr>
+				<tr><td>Cuerda, cáñamo (50 pies)</td><td class="col-price">1 po</td><td>10 lb.</td></tr>
+                <tr><td>Cuerda, seda (50 pies)</td><td class="col-price">10 po</td><td>5 lb.</td></tr>
+				<tr><td>Escalera de mano (10 pies)</td><td class="col-price">1 pp</td><td>25 lb.</td></tr>
+				<tr><td>Espejo, de acero</td><td class="col-price">5 po</td><td>1/2 lb.</td></tr>
+				<tr><td>Estuche de virotes</td><td class="col-price">1 po</td><td>1 lb.</td></tr>
+				<tr><td>Estuche de mapas/pergaminos</td><td class="col-price">1 po</td><td>1 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Focos Arcanos</td></tr>
+				<tr><td>Cetro</td><td class="col-price">10 po</td><td>2 lb.</td></tr>
+				<tr><td>Cristal</td><td class="col-price">10 po</td><td>1 lb.</td></tr>
+				<tr><td>Orbe</td><td class="col-price">20 po</td><td>3 lb.</td></tr>
+				<tr><td>Vara</td><td class="col-price">5 po</td><td>4 lb.</td></tr>
+				<tr><td>Varita</td><td class="col-price">10 po</td><td>1 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Focos Druídicos</td></tr>
+				<tr><td>Ramita de muérdago</td><td class="col-price">1 po</td><td>—</td></tr>
+				<tr><td>Tótem</td><td class="col-price">1 po</td><td>—</td></tr>
+				<tr><td>Vara de madera</td><td class="col-price">5 po</td><td>4 lb.</td></tr>
+				<tr><td>Varita de tejo</td><td class="col-price">10 po</td><td>1 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Equipo de la F-M</td></tr>
+				<tr><td>Frasco o taza</td><td class="col-price">2 pc</td><td>1 lb.</td></tr>
+				<tr><td>Fuego de alquimista</td><td class="col-price">50 po</td><td>1 lb.</td></tr>
+				<tr><td>Garfio o gancho</td><td class="col-price">2 po</td><td>4 lb.</td></tr>
+				<tr><td>Grilletes</td><td class="col-price">2 po</td><td>6 lb.</td></tr>
+				<tr><td>Jabón</td><td class="col-price">2 pc</td><td>—</td></tr>
+				<tr><td>Jarro o jarra</td><td class="col-price">2 pc</td><td>4 lb.</td></tr>
+				<tr><td>Kit de escalada</td><td class="col-price">25 po</td><td>12 lb.</td></tr>
+				<tr><td>Kit de cocina</td><td class="col-price">2 pp</td><td>1 lb.</td></tr>
+				<tr><td>Kit de curandero</td><td class="col-price">5 po</td><td>3 lb.</td></tr>
+				<tr><td>Lacre</td><td class="col-price">5 pp</td><td>—</td></tr>
+				<tr><td>Lámpara</td><td class="col-price">5 pp</td><td>1 lb.</td></tr>
+				<tr><td>Lámpara sumergible con luciérnagas</td><td class="col-price">5 pp</td><td>1 lb.</td></tr> <!-- bright light in a 20-foot radius and dim light for an additional 20 feet -->
+				<tr><td>Libro</td><td class="col-price">25 po</td><td>5 lb.</td></tr>
+				<tr><td>Libro de conjuros</td><td class="col-price">50 po</td><td>3 lb.</td></tr>
+				<tr><td>Linterna, ojo de buey</td><td class="col-price">10 po</td><td>2 lb.</td></tr>
+				<tr><td>Linterna, sorda</td><td class="col-price">5 po</td><td>2 lb.</td></tr>
+				<tr><td>Lupa</td><td class="col-price">100 po</td><td>—</td></tr>
+				<tr><td>Manta</td><td class="col-price">5 pp</td><td>3 lb.</td></tr>
+				<tr><td>Martillo</td><td class="col-price">1 po</td><td>3 lb.</td></tr>
+				<tr><td>Mochila</td><td class="col-price">2 po</td><td>5 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Munición</td></tr>
+				<tr><td>Agujas de cerbatana (50)</td><td class="col-price">1 po</td><td>1 lb.</td></tr>
+				<tr><td>Balas de honda (20)</td><td class="col-price">4 pc</td><td>1 1/2 lb.</td></tr>
+				<tr><td>Flechas (20)</td><td class="col-price">1 po</td><td>1 lb.</td></tr>
+				<tr><td>Virotes de ballesta (20)</td><td class="col-price">1 po</td><td>1 1/2 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Equipo de la O-S</td></tr>
+				<tr><td>Odre</td><td class="col-price">2 pp</td><td>5 lb. (lleno)</td></tr>
+				<tr><td>Olla de hierro</td><td class="col-price">2 po</td><td>10 lb.</td></tr>
+				<tr><td>Pala</td><td class="col-price">2 po</td><td>5 lb.</td></tr>
+				<tr><td>Palanca</td><td class="col-price">2 po</td><td>5 lb.</td></tr>
+				<tr><td>Papel (1 hoja)</td><td class="col-price">2 pp</td><td>—</td></tr>
+				<tr><td>Perfume (vial)</td><td class="col-price">5 po</td><td>—</td></tr>
+				<tr><td>Pergamino (1 hoja)</td><td class="col-price">1 pp</td><td>—</td></tr>
+				<tr><td>Pértiga (10 pies)</td><td class="col-price">5 pc</td><td>7 lb.</td></tr>
+				<tr><td>Pico de minero</td><td class="col-price">2 po</td><td>10 lb.</td></tr>
+				<tr><td>Piedra de afilar</td><td class="col-price">1 pc</td><td>1 lb.</td></tr>
+				<tr><td>Piquetas de hierro (10)</td><td class="col-price">1 po</td><td>5 lb.</td></tr>
+				<tr><td>Pitón</td><td class="col-price">5 pc</td><td>1/4 lb.</td></tr>
+				<tr><td>Poción de curación</td><td class="col-price">50 po</td><td>0.5 lb.</td></tr>
+				<tr><td>Raciones (1 día)</td><td class="col-price">5 pp</td><td>2 lb.</td></tr>
+				<tr><td>Reloj de arena</td><td class="col-price">25 po</td><td>1 lb.</td></tr>
+				<tr><td>Ropa, común</td><td class="col-price">5 pp</td><td>3 lb.</td></tr>
+				<tr><td>Ropa, a la moda</td><td class="col-price">5 po</td><td>4 lb.</td></tr>
+				<tr><td>Ropa, elegante</td><td class="col-price">15 po</td><td>6 lb.</td></tr>
+				<tr><td>Ropa, de viaje/aventurero</td><td class="col-price">2 po</td><td>4 lb.</td></tr>
+				<tr><td>Saco</td><td class="col-price">1 pc</td><td>1/2 lb.</td></tr>
+				<tr><td>Saco de dormir</td><td class="col-price">1 po</td><td>7 lb.</td></tr>
+				<tr><td>Sello (anillo)</td><td class="col-price">5 po</td><td>—</td></tr>
+				<tr><td>Silbato de señales</td><td class="col-price">5 pc</td><td>—</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Símbolos Sagrados</td></tr>
+				<tr><td>Amuleto</td><td class="col-price">5 po</td><td>1 lb.</td></tr>
+				<tr><td>Emblema</td><td class="col-price">5 po</td><td>—</td></tr>
+				<tr><td>Relicario</td><td class="col-price">5 po</td><td>2 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Equipo de la T-Y</td></tr>
+				<tr><td>Tienda (2 personas)</td><td class="col-price">2 po</td><td>20 lb.</td></tr>
+				<tr><td>Tinta (1 oz)</td><td class="col-price">10 po</td><td>—</td></tr>
+				<tr><td>Tiza (trozo)</td><td class="col-price">1 pc</td><td>—</td></tr>
+				<tr><td>Trampa de caza</td><td class="col-price">5 po</td><td>25 lb.</td></tr>
+				<tr><td>Túnica</td><td class="col-price">1 po</td><td>4 lb.</td></tr>
+				<tr><td>Vela</td><td class="col-price">1 pc</td><td>—</td></tr>
+				<tr><td>Veneno básico (vial)</td><td class="col-price">100 po</td><td>—</td></tr>
+				<tr><td>Vial</td><td class="col-price">1 po</td><td>—</td></tr>
+                <tr><td>Yesquero</td><td class="col-price">5 pp</td><td>1 lb.</td></tr>
+            </tbody>
+        </table>
+    </template>
+
+    <template id="tpl-herramientas">
+        <p class="desc-text">Permiten a un personaje hacer algo que de otro modo sería imposible o muy difícil, como forzar cerraduras o tocar música.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Herramienta</th>
+                    <th>Coste</th>
+                    <th>Peso</th>
+                </tr>
+            </thead>
+            <tbody>
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Herramientas de Artesano</td></tr>
+				<tr><td>Herramientas de Carpintero</td><td class="col-price">8 po</td><td>6 lb.</td></tr>
+				<tr><td>Herramientas de Cartógrafo</td><td class="col-price">15 po</td><td>6 lb.</td></tr>
+				<tr><td>Herramientas de Zapatero</td><td class="col-price">5 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Alfarero</td><td class="col-price">10 po</td><td>3 lb.</td></tr>
+				<tr><td>Herramientas de Herrero</td><td class="col-price">20 po</td><td>8 lb.</td></tr>
+				<tr><td>Herramientas de Hojalatero</td><td class="col-price">50 po</td><td>10 lb.</td></tr>
+				<tr><td>Herramientas de Tejedor</td><td class="col-price">1 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Tallista</td><td class="col-price">1 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Soplador de vidrio</td><td class="col-price">30 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Joyero</td><td class="col-price">25 po</td><td>2 lb.</td></tr>
+				<tr><td>Herramientas de Peletero</td><td class="col-price">5 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Albañil</td><td class="col-price">10 po</td><td>8 lb.</td></tr>
+				<tr><td>Herramientas de Minero</td><td class="col-price">10 po</td><td>8 lb.</td></tr>
+				<tr><td>Herramientas de Pintor</td><td class="col-price">10 po</td><td>5 lb.</td></tr>
+				<tr><td>Herramientas de Cervecería</td><td class="col-price">20 po</td><td>9 lb.</td></tr>
+				<tr><td>Herramientas de Caligrafía</td><td class="col-price">10 po</td><td>5 lb.</td></tr>
+				<tr><td>Útiles de cocina</td><td class="col-price">1 po</td><td>8 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Herramientas de Experto</td></tr>
+                <tr><td>Herramientas de ladrón</td><td class="col-price">25 po</td><td>1 lb.</td></tr>
+                <tr><td>Suministros de alquimista</td><td class="col-price">50 po</td><td>8 lb.</td></tr>
+                <tr><td>Útiles de navegante</td><td class="col-price">25 po</td><td>2 lb.</td></tr>
+				
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Kits de Experto</td></tr>
+				<tr><td>Kit de disfraz</td><td class="col-price">25 po</td><td>3 lb.</td></tr>
+				<tr><td>Kit de envenenador</td><td class="col-price">50 po</td><td>2 lb.</td></tr>
+				<tr><td>Kit de falsificación</td><td class="col-price">15 po</td><td>5 lb.</td></tr>
+				<tr><td>Kit de herboristería</td><td class="col-price">5 po</td><td>3 lb.</td></tr>
+
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Instrumentos Musicales</td></tr>
+				<tr><td>Caramillo</td><td class="col-price">2 po</td><td>1 lb.</td></tr>
+				<tr><td>Cuerno</td><td class="col-price">3 po</td><td>2 lb.</td></tr>
+				<tr><td>Dulcimer</td><td class="col-price">25 po</td><td>10 lb.</td></tr>
+				<tr><td>Flauta</td><td class="col-price">2 po</td><td>1 lb.</td></tr>
+				<tr><td>Flauta de pan</td><td class="col-price">12 po</td><td>2 lb.</td></tr>
+				<tr><td>Gaita</td><td class="col-price">30 po</td><td>6 lb.</td></tr>
+				<tr><td>Laúd</td><td class="col-price">35 po</td><td>2 lb.</td></tr>
+				<tr><td>Lira</td><td class="col-price">30 po</td><td>2 lb.</td></tr>
+				<tr><td>Tambor</td><td class="col-price">6 po</td><td>3 lb.</td></tr>
+				<tr><td>Viola</td><td class="col-price">30 po</td><td>1 lb.</td></tr>
+
+				<tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Set de Juego</td></tr>
+				<tr><td>Ajedrez de dragón</td><td class="col-price">1 po</td><td>1/2 lb.</td></tr>
+				<tr><td>Set de dados</td><td class="col-price">1 pp</td><td>—</td></tr>
+				<tr><td>Set de tres dragones</td><td class="col-price">1 po</td><td>—</td></tr>
+                <tr><td>Baraja de cartas</td><td class="col-price">5 pp</td><td>—</td></tr>
+            </tbody>
+        </table>
+    </template>
+
+    <template id="tpl-monturas">
+        <p class="desc-text">Para moverte rápido por tierra y mar, o transportar los tesoros rescatados de las mazmorras.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Animal o Vehículo</th>
+                    <th>Coste</th>
+                    <th>Velocidad</th>
+                    <th>Capacidad de carga</th>
+                </tr>
+            </thead>
+            <tbody>
+				<tr><td colspan="4" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Vehículos Terrestres Comunes</td></tr>
+				<tr><td>Burro o mula</td><td class="col-price">8 po</td><td>40 pies</td><td>420 lb.</td></tr>
+				<tr><td>Caballo de guerra</td><td class="col-price">400 po</td><td>60 pies</td><td>540 lb.</td></tr>
+                <tr><td>Caballo de monta</td><td class="col-price">75 po</td><td>60 pies</td><td>480 lb.</td></tr>
+                <tr><td>Caballo de tiro</td><td class="col-price">50 po</td><td>40 pies</td><td>540 lb.</td></tr>
+				<tr><td>Carro</td><td class="col-price">15 po</td><td>40 pies (1 Animal de Carga)</td><td>200 lb.</td></tr>
+                <tr><td>Carromato/Vagón</td><td class="col-price">35 po</td><td>40 pies (2 Animales de Carga)</td><td>600 lb.</td></tr>
+                <tr><td>Mastín</td><td class="col-price">25 po</td><td>40 pies</td><td>195 lb.</td></tr>
+                <!-- <tr><td>Poni</td><td class="col-price">30 po</td><td>40 pies</td><td>225 lb.</td></tr> -->
+				
+				<tr><td colspan="4" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Vehículos Terrestres Exóticos</td></tr>
+				<tr><td>Camello</td><td class="col-price">50 po</td><td>50 pies</td><td>480 lb.</td></tr>
+				<tr><td>Elefante</td><td class="col-price">200 po</td><td>40 pies</td><td>1.320 lb.</td></tr>
+				
+				<tr><td colspan="4" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Accesorios y Arreos</td></tr>
+				<tr><td>Alforjas</td><td class="col-price">4 po</td><td>—</td><td>8 lb.</td></tr>
+				<tr><td>Comida bestia (día)</td><td class="col-price">5 pc</td><td>—</td><td>10 lb.</td></tr>
+				<tr><td>Silla de montar (Básica)</td><td class="col-price">10 po</td><td>—</td><td>25 lb.</td></tr>
+				<tr><td>Silla de montar (Exótica)</td><td class="col-price">60 po</td><td>—</td><td>40 lb.</td></tr>
+				
+				<tr><td colspan="4" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Vehículos Marítimos Comunes</td></tr>
+				<tr><td>Bote de remos</td><td class="col-price">50 po</td><td>1.5 mph</td><td>—</td></tr>
+            </tbody>
+        </table>
+    </template>
+
+    <template id="tpl-mercancias">
+        <p class="desc-text">Bienes de comercio cuyo valor es idéntico al de las monedas por las que se intercambian. Muy usados en grandes acuerdos.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Coste</th>
+                    <th>Mercancía</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td class="col-price">1 pc</td><td>1 lb. de trigo</td></tr>
+                <tr><td class="col-price">2 pc</td><td>1 lb. de harina o 1 gallina</td></tr>
+                <tr><td class="col-price">5 pc</td><td>1 lb. de sal</td></tr>
+                <tr><td class="col-price">1 pp</td><td>1 lb. de hierro o 1 yarda cuadrada de tela</td></tr>
+                <tr><td class="col-price">5 pp</td><td>1 lb. de cobre o 1 yarda cuadrada de tela de algodón</td></tr>
+                <tr><td class="col-price">1 po</td><td>1 lb. de jengibre o 1 cabra</td></tr>
+                <tr><td class="col-price">2 po</td><td>1 lb. de canela o pimienta, o 1 oveja</td></tr>
+                <tr><td class="col-price">5 po</td><td>1 lb. de plata o 1 cerdo</td></tr>
+                <tr><td class="col-price">10 po</td><td>1 yarda de seda o 1 vaca</td></tr>
+                <tr><td class="col-price">50 po</td><td>1 lb. de oro</td></tr>
+				<tr><td class="col-price">100 po</td><td>1 lb. de adamantita</td></tr>
+				<tr><td class="col-price">250 po</td><td>1 lb. de acero negro</td></tr>
+                <tr><td class="col-price">500 po</td><td>1 lb. de platino</td></tr>
+            </tbody>
+        </table>
+    </template>
+	
+	<template id="tpl-herreria-especial">
+        <p class="desc-text"><strong>Gauntlgrym (La Gran Forja de los Reyes), Ironmaster, Mirabar y Mithral Hall:</strong> Maestros herreros enanos ofrecen servicios que trascienden el martilleo común. Desde baños de plata purificada hasta la forja de aleaciones legendarias como el mithral y la adamantina, siguiendo las estrictas tradiciones de Moradin.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Servicio / Trabajo</th>
+                    <th>Coste</th>
+                    <th>Regla / Detalle (D&D 5e)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Modificaciones de Material (PHB y XGtE)</td></tr>
+                <tr>
+                    <td colspan="3" style="font-size: 0.85em; color: #aaa; padding-bottom: 10px;">
+                        <em>Nota: Fabricar objetos con aleacione legendarias requiere que el personaje o el herrero dispongan de la fórmula, materiales exóticos (sino se debe proporcionar el peso en libras del objeto en cuestión, pero de ese material) y oro para cubrir los gastos de la forja.</em>
+                    </td>
+                </tr>
+				<tr>
+                    <td>Baño de Plata (1 Arma)</td>
+                    <td class="col-price">100 po</td>
+                    <td>Supera resistencias de monstruos (ej: licántropos). Requiere únicamente el arma base.</td>
+                </tr>
+                <tr>
+                    <td>Baño de Plata (10 Municiones)</td>
+                    <td class="col-price">100 po</td>
+                    <td>Supera resistencias de monstruos (ej: licántropos). Válido para flechas, virotes o balas de honda. Requiere únicamente la munición base.</td>
+                </tr>
+                <tr>
+                    <td>Arma de Adamantina</td>
+                    <td class="col-price">+500 po</td>
+                    <td>Requiere el arma base y el material necesario (requiere el peso en libras en material exótico del arma a modificar). En caso de que el herrero disponga de materiales exóticos, se añade al coste de fabricación al coste base del arma a crear. Los golpes contra objetos y estructuras son críticos automáticos.</td>
+                </tr>
+				<tr>
+                    <td>Arma de Acero Negro</td>
+                    <td class="col-price">+500 po</td>
+                    <td>Requiere el arma base y el material necesario (requiere el peso en libras en material exótico del arma a modificar). En caso de que el herrero disponga de materiales exóticos, se añade al coste de fabricación al coste base del arma a crear. El acero negro es altamente resistente a las emanaciones arcanas, lo que otorga Resistencia Mágica: Ventaja en Salvaciones (fuerza, destreza, constitución, inteligencia, sabiduría o carisma) contra hechizos y efectos mágicos.</td>
+                </tr>
+                <tr>
+                    <td>Armadura de Adamantina</td>
+                    <td class="col-price">+500 po</td>
+                    <td>Requiere la armadura base y el material necesario (requiere el peso en libras en material exótico de la armadura a modificar). En caso de que el herrero disponga de materiales exóticos, se añade al coste base de la armadura a crear (Objeto Poco Común). Convierte cualquier impacto crítico recibido en un golpe normal.</td>
+                </tr>
+                <tr>
+                    <td>Armadura de Mithral</td>
+                    <td class="col-price">+500 po</td>
+                    <td>Requiere la armadura base y el material necesario (requiere el peso en libras en material exótico de la armadura a modificar). En caso de que el herrero disponga de materiales exóticos, se añade al coste base de la armadura (Objeto Poco Común). Elimina el requisito de Fuerza y la desventaja en Sigilo.</td>
+                </tr>
+
+                <tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Mantenimiento y Arreglos</td></tr>
+                <tr>
+                    <td colspan="3" style="font-size: 0.85em; color: #aaa; padding-bottom: 10px;">
+                        <em>Nota: Trabajos de Herrerías comunes a lo largo y ancho de la Costa de la Espada.</em>
+                    </td>
+                </tr>
+				<tr>
+                    <td>Reparación Menor (Brillo, mellas, filos en armas)</td>
+                    <td class="col-price">1-5 po</td>
+                    <td>Mantenimiento rutinario para recuperar el brillo (1 po) y filo original (5 po). En ocasiones un arma sufre una penalización permanente y acumulativa de -1 a las tiradas de daño (Ej. metal oxidado). Si esta penalización baja a -5, el arma se destruye. Antes de eso, un herrero puede recuperar el filo del arma (+1 punto de daño perdido) a cambio de 1 día por cada 5 po de coste de reparación.</td>
+                </tr>
+                <tr>
+                    <td>Reparación Mayor (Corazas rotas)</td>
+                    <td class="col-price">5 po - Mitad</td>
+                    <td>En ocasiones una armadura, especialmente una armadura de metal o un escudo de metal, sufre una penalización permanente y acumulativa de -1 a la CA que ofrece. La armadura reducida a una CA de 10 o un escudo que baja a un bonificador de +0 se destruye (Ej. metal oxidado). Antes de eso, un herrero puede recuperar la dureza y protección del objeto (+1 punto de CA perdido) a cambio de 1 día por cada 5 po de coste de reparación. Si la armadura está inservible, cuesta la mitad del valor base del objeto y 1 día por cada 5 po de coste de reparación forjarla de nuevo.</td>
+                </tr>
+                <tr>
+                    <td>Ajuste de Armadura (Tallaje)</td>
+                    <td class="col-price">10-40 po</td>
+                    <td>Ajustar una armadura saqueada a la talla del personaje (aprox. 10-20% del valor base).</td>
+                </tr>
+            </tbody>
+        </table>
+    </template>
+	
+	<template id="tpl-forja-magica">
+        <p class="desc-text"><strong>La Forja de Conjuros de Phandelver:</strong> En este nexo de poder arcano, los maestros forjadores y tejedores de magia pueden canalizar energías ancestrales para crear objetos maravillosos, armas de leyenda y artefactos. Toda creación requiere oro para materias primas, tiempo de dedicación, el conocimiento de la fórmula y la esencia vital de una criatura poderosa.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rareza del Objeto</th>
+                    <th>Coste / Tiempo Base</th>
+                    <th>Dedicación y Nivel Requerido Personaje</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Creación de Objetos Mágicos (Armas, Armaduras y Objetos Maravillosos)</td></tr>
+                <p style="color:#fff;"><strong>Creación de Objetos Mágicos.</strong> La creación de un objeto tiene un costo especificado en la tabla Creación de objetos mágicos. Un personaje dedicado a la creación de un objeto mágico avanza en progresiones de 25 po, gastando este monto por cada día de trabajo hasta que el costo total sea cubierto. Se asume que el personaje trabaja 8 horas por cada uno de estos días. De eso modo, la creación de un objeto mágico poco común toma 20 días y 500 po.
+				</p>
+				<p style="color:#fff;"><strong>Objetos con la capacidad de realizar un conjuro.</strong> El creador deberá gastar uno de sus espacios de conjuro del nivel del conjuro para cada día del proceso de creación. Los componentes materiales del conjuro también deben estar a la mano durante el proceso. Si el conjuro consume normalmente aquellos componentes, ellos son consumidos en el proceso de creación. Si el objeto será capaz de producir el conjuro sólo una vez, como con un pergamino de conjuro, los componentes se consumen solo una vez durante el proceso. De otro modo, los componentes se consumen cada día del proceso de creación del objeto.
+				</p>
+				<p style="color:#fff;"><strong>Combinar esfuerzos para crear un objeto mágico.</strong> Si cada uno de los personajes involucrados en la creación del objeto mágico tiene el nivel requerido. Cada personaje puede contribuir con conjuros, espacios de conjuros, y componentes, mientras todos participen durante todo el proceso de creación. Cada personaje puede contribuir con 25 po de valor del esfuerzo por cada día empleado en ayudar a crear el objeto.
+				</p>
+				<br>
+				<tr>
+                    <td colspan="3" style="font-size: 0.85em; color: #aaa; padding-bottom: 10px;">
+                        <em>Regla (DMG): Tabla Creación de objetos mágicos.</em>
+                    </td>
+                </tr>
+                <tr><td>Común</td><td class="col-price">100 po / 4 días</td><td>Nivel mínimo de PJ 3</td></tr>
+                <tr><td>Poco común</td><td class="col-price">500 po / 2 dekhanas</td><td>Nivel mínimo de PJ 3</td></tr>
+                <tr><td>Raro</td><td class="col-price">5.000 po / 20 dekhanas</td><td>Nivel mínimo de PJ 6</td></tr>
+                <tr><td>Muy raro</td><td class="col-price">50.000 po / 200 dekhanas (4 años)</td><td>Nivel mínimo de PJ 11</td></tr>
+                <tr><td>Legendario</td><td class="col-price">500.000 po / 2.000 dekhanas (40 años)</td><td>Nivel mínimo de PJ 17 o superior</td></tr>
+
+                <tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Alquimia Arcana: Pociones de Curación</td></tr>
+                <tr>
+                    <td colspan="3" style="font-size: 0.85em; color: #aaa; padding-bottom: 10px;">
+                        <em>Regla (XGtE): Fabricar pociones de curación es una excepción que no requiere ingredientes especiales (ej. partes de monstruos exóticos), solo competencia con el Kit de herbalismo, tiempo y oro para materiales.</em>
+                    </td>
+                </tr>
+                <tr><td>Poción de Curación (Normal)</td><td class="col-price">25 po</td><td>1 día de trabajo y el Kit de herbalismo</td></tr>
+                <tr><td>Poción de Curación Mayor</td><td class="col-price">100 po</td><td>5 días de trabajo y el Kit de herbalismo</td></tr>
+                <tr><td>Poción de Curación Superior</td><td class="col-price">1.000 po</td><td>15 días (1 dekhana y media) y el Kit de herbalismo</td></tr>
+                <tr><td>Poción de Curación Suprema</td><td class="col-price">10.000 po</td><td>2 dekhanas de trabajo y el Kit de herbalismo</td></tr>
+
+                <tr><td colspan="3" style="background:rgba(255,255,255,0.05); font-weight:bold; color:var(--accent); text-align:center;">Elaboración de Pergaminos Mágicos</td></tr>
+                <tr>
+                    <td colspan="3" style="font-size: 0.85em; color: #aaa; padding-bottom: 10px;">
+                        <em>Regla (XGtE): Solo puedes inscribir conjuros que conozcas, tengas preparados y puedas lanzar. Debes ser competente en la habilidad de Arcano.</em>
+                    </td>
+                </tr>
+                <tr><td>Truco (Cantrip)</td><td class="col-price">15 po</td><td>1 día de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 1</td><td class="col-price">25 po</td><td>1 día de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 2</td><td class="col-price">250 po</td><td>3 días de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 3</td><td class="col-price">500 po</td><td>5 días de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 4</td><td class="col-price">2.500 po</td><td>1 dekhana de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 5</td><td class="col-price">5.000 po</td><td>2 dekhanas de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 6</td><td class="col-price">15.000 po</td><td>4 dekhanas de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 7</td><td class="col-price">50.000 po</td><td>8 dekhanas de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 8</td><td class="col-price">100.000 po</td><td>16 dekhanas de trabajo</td></tr>
+                <tr><td>Conjuro de Nivel 9</td><td class="col-price">250.000 po</td><td>24 dekhanas de trabajo</td></tr>
+            </tbody>
+        </table>
+    </template>
+
+    <script>
+        function toggleUI() {
+            const ui = document.getElementById('main-ui');
+            const map = document.getElementById('map-image');
+            const overlay = document.getElementById('map-overlay');
+            const icon = document.getElementById('map-icon');
+            
+            ui.classList.toggle('ui-hidden');
+            map.classList.toggle('map-bright');
+            overlay.classList.toggle('overlay-hidden');
+            
+            icon.innerText = ui.classList.contains('ui-hidden') ? 'visibility' : 'visibility_off';
+        }
+
+        const categoryImages = {
+            "Armaduras y Escudos": "armaduras-y-escudos.jpg",
+            "Armas": "armas.jpg",
+            "Equipo de Aventurero": "equipo-de-aventurero.jpg",
+            "Herramientas": "herramientas.jpg",
+            "Monturas y Vehículos": "monturas-y-vehiculos.jpg",
+            "Mercancías": "mercancias.jpg",
+            "Herrería": "herramientas.jpg",
+            "Forja de Conjuros": "mod-weapons-midjourney.jpg"
+        };
+
+        function openCategory(title, templateId) {
+            // 1. Cambiar Título
+            document.getElementById('detail-title').innerText = title;
+            
+            // 2. Extraer y clonar la tabla de su template
+            const contentDiv = document.getElementById('detail-content');
+            const template = document.getElementById(templateId);
+            contentDiv.innerHTML = ''; // Limpiar lo anterior
+            contentDiv.appendChild(template.content.cloneNode(true));
+            
+            // 3. Cambiar la imagen de fondo dinamicamente con rutas reales del repo
+            const mapImage = document.getElementById('map-image');
+            mapImage.style.opacity = "0";
+            setTimeout(() => {
+                mapImage.src = categoryImages[title] || "mod-weapons-midjourney.jpg";
+                mapImage.style.opacity = "0.5";
+            }, 300);
+
+            // 4. Mostrar el panel
+            document.getElementById('detail-view').classList.add('active');
+        }
+
+        function closeCategory() {
+            document.getElementById('detail-view').classList.remove('active');
+            /*
+            // Opcional: Volver a la imagen principal al cerrar
+            const mapImage = document.getElementById('map-image');
+            mapImage.style.opacity = "0";
+            setTimeout(() => {
+                mapImage.src = "mod-weapons-midjourney.jpg";
+                mapImage.style.opacity = "0.5";
+            }, 300);
+			*/
+        }
+    </script>
+</body>
+</html>
