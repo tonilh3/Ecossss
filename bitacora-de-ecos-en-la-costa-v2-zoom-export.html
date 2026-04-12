@@ -197,7 +197,7 @@
             margin-bottom: 20px;
         }
 
-        input, textarea {
+        input, textarea, select {
             width: 100%;
             padding: 10px;
             margin-bottom: 10px;
@@ -255,6 +255,10 @@
             border-radius: 3px;
         }
 
+        .author-tag {
+            background: #1d4f5f;
+        }
+
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
     </style>
@@ -308,6 +312,16 @@
 
         <div id="diary" class="tab-pane active">
             <div class="input-section">
+                <select id="diary-author">
+                    <option value="">¿Quién lo anota?</option>
+                    <option value="Lyxandria">Lyxandria</option>
+                    <option value="Dain">Dain</option>
+                    <option value="Nima">Nima</option>
+                    <option value="Faram">Faram</option>
+                    <option value="Zyphira">Zyphira</option>
+                    <option value="Soryn">Soryn</option>
+                    <option value="Nana Lula">Nana Lula</option>
+                </select>
                 <input type="text" id="diary-title" placeholder="Título...">
                 <textarea id="diary-text" rows="2" placeholder="Sucesos..."></textarea>
                 <button class="add-btn" onclick="addItem('diary')">Registrar</button>
@@ -317,6 +331,16 @@
 
         <div id="clues" class="tab-pane">
             <div class="input-section">
+                <select id="clues-author">
+                    <option value="">¿Quién lo anota?</option>
+                    <option value="Lyxandria">Lyxandria</option>
+                    <option value="Dain">Dain</option>
+                    <option value="Nima">Nima</option>
+                    <option value="Faram">Faram</option>
+                    <option value="Zyphira">Zyphira</option>
+                    <option value="Soryn">Soryn</option>
+                    <option value="Nana Lula">Nana Lula</option>
+                </select>
                 <input type="text" id="clues-title" placeholder="Pista...">
                 <textarea id="clues-text" rows="2" placeholder="Detalles..."></textarea>
                 <button class="add-btn" onclick="addItem('clues')">Anotar</button>
@@ -326,6 +350,16 @@
 
         <div id="npcs" class="tab-pane">
             <div class="input-section">
+                <select id="npcs-author">
+                    <option value="">¿Quién lo anota?</option>
+                    <option value="Lyxandria">Lyxandria</option>
+                    <option value="Dain">Dain</option>
+                    <option value="Nima">Nima</option>
+                    <option value="Faram">Faram</option>
+                    <option value="Zyphira">Zyphira</option>
+                    <option value="Soryn">Soryn</option>
+                    <option value="Nana Lula">Nana Lula</option>
+                </select>
                 <input type="text" id="npcs-title" placeholder="Nombre...">
                 <textarea id="npcs-text" rows="2" placeholder="Notas..."></textarea>
                 <button class="add-btn" onclick="addItem('npcs')">Anotar</button>
@@ -340,6 +374,7 @@
     const months = ["Hammer/Profundo Invierno", "Alturiak/La Garra del Invierno", "Ches/La Garra de los Atardeceres", "Tarsakh/La Garra de las Tormentas", "Mirtul/El Deshielo", "Kythorn/La Época de las Flores", "Flamarûl/Marea de Verano", "Eleasias/Sol Alto", "Eleint/El Desvanecimiento", "Marpenoth/Caída de las Hojas", "Uktar/La Putrefacción", "Nightal/ El Cierre"];
 
     const LOCAL_STORAGE_KEY = 'cftd_journal_v2';
+    const LAST_AUTHOR_KEY = 'cftd_journal_last_author';
     const SUPABASE_CONFIG = {
         url: "https://ypoelohbvwdpfpxscmxc.supabase.co",
         anonKey: "sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO",
@@ -402,8 +437,18 @@
             id: String(item?.id || `item_${Date.now()}_${index}`),
             title: String(item?.title || ''),
             desc: String(item?.desc || ''),
-            date: String(item?.date || '')
+            date: String(item?.date || ''),
+            author: String(item?.author || '')
         }));
+    }
+
+    function applySavedAuthor() {
+        const savedAuthor = localStorage.getItem(LAST_AUTHOR_KEY);
+        if (!savedAuthor) return;
+
+        document.querySelectorAll('select[id$="-author"]').forEach(select => {
+            select.value = savedAuthor;
+        });
     }
 
     function isSupabaseConfigured() {
@@ -527,15 +572,26 @@
     function addItem(type) {
         const t = document.getElementById(`${type}-title`);
         const d = document.getElementById(`${type}-text`);
+        const authorSelect = document.getElementById(`${type}-author`);
+        const author = authorSelect.value;
         if(!t.value) return;
+        if(!author) {
+            alert('Selecciona quién está anotando esta entrada.');
+            return;
+        }
 
         db[type].unshift({
             id: 'item_' + Date.now(),
             title: t.value,
             desc: d.value,
-            date: `${db.calendar.day} ${months[db.calendar.monthIdx].substring(0,3)}.`
+            date: `${db.calendar.day} ${months[db.calendar.monthIdx].substring(0,3)}.`,
+            author
         });
 
+        localStorage.setItem(LAST_AUTHOR_KEY, author);
+        document.querySelectorAll('select[id$="-author"]').forEach(select => {
+            select.value = author;
+        });
         t.value = ''; d.value = '';
         save();
         render();
@@ -588,6 +644,13 @@
                 date.textContent = item.date;
                 title.appendChild(date);
 
+                if (item.author) {
+                    const author = document.createElement('span');
+                    author.className = 'loc-tag author-tag';
+                    author.textContent = item.author;
+                    title.appendChild(author);
+                }
+
                 const actions = document.createElement('div');
                 actions.className = 'card-actions';
 
@@ -624,6 +687,7 @@
         });
     }
 
+    applySavedAuthor();
     initSharedJournal();
 	// Lógica de Lupa Dinámica
 	document.getElementById('mapCont').addEventListener('mousemove', function(e) {
@@ -662,9 +726,10 @@
 		secciones.forEach(sec => {
 			contenidoBody += `<h2 style="color:var(--dnd-gold); font-family:Cinzel; border-bottom:1px solid; margin-top:30px;">${escapeHTML(sec.t)}</h2>`;
 			sec.d.forEach(item => {
+                const author = item.author ? ` <span>${escapeHTML(item.author)}</span>` : '';
 				contenidoBody += `
 				<div class="location-card" style="display:block; margin-bottom:10px;">
-					<div class="loc-title"><strong>${escapeHTML(item.title)}</strong> <span>${escapeHTML(item.date)}</span></div>
+					<div class="loc-title"><strong>${escapeHTML(item.title)}</strong> <span>${escapeHTML(item.date)}</span>${author}</div>
 					<div style="display:block; margin-top:10px; color:#ccc;">${escapeHTML(item.desc)}</div>
 				</div>`;
 			});
