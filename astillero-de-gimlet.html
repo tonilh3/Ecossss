@@ -148,6 +148,26 @@
             font-size: 0.9rem; color: #ccc;
         }
 
+        #sync-status {
+            position: fixed;
+            left: 20px;
+            bottom: 110px;
+            z-index: 200;
+            max-width: 300px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.82);
+            color: var(--gold);
+            border: 1px solid rgba(212, 175, 55, 0.65);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+        }
+
+        #sync-status.error {
+            color: #ff9d8a;
+            border-color: var(--blood);
+        }
+
         .info-title { color: var(--gold); font-weight: bold; font-family: 'Georgia', serif; font-size: 1.1rem; margin-bottom: 5px; }
         .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 15px; }
         .info-label { color: #888; text-transform: uppercase; font-size: 0.9rem; }
@@ -237,7 +257,18 @@
     </div>
 </div>
 
+<div id="sync-status">Guardado local</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+    const LOCAL_STORAGE_KEY = 'ship_architect_v3_final';
+    const SUPABASE_CONFIG = {
+        url: "https://ypoelohbvwdpfpxscmxc.supabase.co",
+        anonKey: "sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO",
+        table: "campaign_journal",
+        rowId: "naval-shipyard"
+    };
+
     const SHIPS = {
         caravel: { name: "Carabela", ac: 15, hp: 200, threshold: 15, speed: 2, slots: 3, crew: "10", pass: 10, cargo: 100, img: "caravel-deck.jpg" },
         coaster: { name: "Bajel de Cabotaje", ac: 15, hp: 200, threshold: 15, speed: 2, slots: 1, crew: "10", pass: 10, cargo: 100, img: "coaster-deck.jpg" },
@@ -265,11 +296,106 @@
     let currentShipKey = 'caravel';
     let equippedItems = {}; 
     let shipHPs = {}; // Guardaremos la vida por cada barco
+    let remoteShipyard = null;
+    let syncInProgress = false;
+
+    if (window.supabase) {
+        remoteShipyard = window.supabase.createClient(
+            SUPABASE_CONFIG.url,
+            SUPABASE_CONFIG.anonKey,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+    }
 
     function init() {
         renderLists();
         loadFromStorage();
-        updateUI(); 
+        updateUI();
+        initSharedShipyard();
+    }
+
+    function setSyncStatus(text, isError = false) {
+        const el = document.getElementById('sync-status');
+        if (!el) return;
+        el.innerText = text;
+        el.classList.toggle('error', isError);
+    }
+
+    function getShipyardState() {
+        return { currentShipKey, equippedItems, shipHPs };
+    }
+
+    function applyShipyardState(state) {
+        if (!state || typeof state !== 'object') return;
+        currentShipKey = state.currentShipKey || 'caravel';
+        equippedItems = state.equippedItems || {};
+        shipHPs = state.shipHPs || {};
+        document.getElementById('shipSelector').value = currentShipKey;
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(getShipyardState()));
+        updateUI();
+    }
+
+    async function initSharedShipyard() {
+        if (!remoteShipyard) {
+            setSyncStatus('Guardado local: Supabase no disponible', true);
+            return;
+        }
+
+        setSyncStatus('Sincronizando astilleros...');
+        await pullSharedShipyard();
+        window.addEventListener('focus', pullSharedShipyard);
+        setInterval(pullSharedShipyard, 12000);
+    }
+
+    async function pullSharedShipyard() {
+        if (!remoteShipyard || syncInProgress) return;
+
+        const { data, error } = await remoteShipyard
+            .from(SUPABASE_CONFIG.table)
+            .select('data')
+            .eq('id', SUPABASE_CONFIG.rowId)
+            .maybeSingle();
+
+        if (error) {
+            setSyncStatus('Error al leer astilleros compartidos', true);
+            return;
+        }
+
+        if (data?.data) {
+            applyShipyardState(data.data);
+            setSyncStatus('Astilleros compartidos actualizados');
+            return;
+        }
+
+        await pushSharedShipyard();
+    }
+
+    async function pushSharedShipyard() {
+        if (!remoteShipyard) return;
+
+        syncInProgress = true;
+        setSyncStatus('Guardando astilleros para todos...');
+        const { error } = await remoteShipyard
+            .from(SUPABASE_CONFIG.table)
+            .upsert({
+                id: SUPABASE_CONFIG.rowId,
+                data: getShipyardState(),
+                updated_at: new Date().toISOString()
+            });
+        syncInProgress = false;
+
+        if (error) {
+            setSyncStatus('Error al guardar astilleros', true);
+            return;
+        }
+
+        setSyncStatus('Astilleros guardados para todos');
     }
 
     function renderLists() {
@@ -471,15 +597,12 @@
     }
 
     function saveToStorage() {
-        localStorage.setItem('ship_architect_v3_final', JSON.stringify({
-            currentShipKey, 
-            equippedItems, 
-            shipHPs 
-        }));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(getShipyardState()));
+        pushSharedShipyard();
     }
 
     function loadFromStorage() {
-        const saved = localStorage.getItem('ship_architect_v3_final');
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
             currentShipKey = parsed.currentShipKey || 'caravel';

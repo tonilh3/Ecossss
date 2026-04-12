@@ -80,11 +80,32 @@
             justify-content: center; align-items: center; z-index: 300;
             text-align: center; padding: 40px;
         }
+
+        .sync-status {
+            position: fixed;
+            left: 16px;
+            bottom: 16px;
+            z-index: 250;
+            max-width: 280px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.82);
+            color: var(--divine-blue);
+            border: 1px solid rgba(0, 212, 255, 0.55);
+            border-radius: 6px;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+        }
+
+        .sync-status.error {
+            color: #ff9d8a;
+            border-color: var(--infernal-red);
+        }
     </style>
 </head>
 <body>
 
     <div id="ambient-glow"></div>
+    <div class="sync-status" id="sync-status">Guardado local</div>
 
     <div id="setup-modal">
         <h2 style="color: var(--infernal-red)">Vínculo Inicial</h2>
@@ -120,14 +141,46 @@
         <button class="btn" style="margin-top: 40px" onclick="closeRevelation()">Regresar al Registro</button>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        const LOCAL_STORAGE_KEY = 'zyphiraMark';
+        const SUPABASE_CONFIG = {
+            url: "https://ypoelohbvwdpfpxscmxc.supabase.co",
+            anonKey: "sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO",
+            table: "campaign_journal",
+            rowId: "zyphira-mark"
+        };
+
         let markValue = 0;
         let audioCtx = null;
         let heartbeatInterval = null;
+        let remoteMark = null;
+        let syncInProgress = false;
+
+        if (window.supabase) {
+            remoteMark = window.supabase.createClient(
+                SUPABASE_CONFIG.url,
+                SUPABASE_CONFIG.anonKey,
+                {
+                    auth: {
+                        persistSession: false,
+                        autoRefreshToken: false,
+                        detectSessionInUrl: false
+                    }
+                }
+            );
+        }
+
+        function setSyncStatus(text, isError = false) {
+            const el = document.getElementById('sync-status');
+            if (!el) return;
+            el.innerText = text;
+            el.classList.toggle('error', isError);
+        }
 
         // --- PERSISTENCIA Y CONFIGURACIÓN ---
         window.onload = () => {
-            const savedValue = localStorage.getItem('zyphiraMark');
+            const savedValue = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (savedValue === null) {
                 document.getElementById('setup-modal').style.display = 'flex';
             } else {
@@ -135,15 +188,91 @@
                 updateVisuals();
                 startHeartbeat();
             }
+            initSharedMark();
         };
+
+        async function initSharedMark() {
+            if (!remoteMark) {
+                setSyncStatus('Guardado local: Supabase no disponible', true);
+                return;
+            }
+
+            setSyncStatus('Sincronizando marca...');
+            await pullSharedMark();
+            window.addEventListener('focus', pullSharedMark);
+            setInterval(pullSharedMark, 10000);
+        }
+
+        function applyMarkValue(value) {
+            if (typeof value !== 'number' || Number.isNaN(value)) {
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                document.getElementById('setup-modal').style.display = 'flex';
+                setSyncStatus('Marca compartida sin iniciar');
+                return;
+            }
+
+            markValue = Math.max(0, value);
+            localStorage.setItem(LOCAL_STORAGE_KEY, markValue);
+            document.getElementById('setup-modal').style.display = 'none';
+            updateVisuals();
+            startHeartbeat();
+        }
+
+        async function pullSharedMark() {
+            if (!remoteMark || syncInProgress) return;
+
+            const { data, error } = await remoteMark
+                .from(SUPABASE_CONFIG.table)
+                .select('data')
+                .eq('id', SUPABASE_CONFIG.rowId)
+                .maybeSingle();
+
+            if (error) {
+                setSyncStatus('Error al leer la marca compartida', true);
+                return;
+            }
+
+            if (data?.data && Object.prototype.hasOwnProperty.call(data.data, 'markValue')) {
+                applyMarkValue(data.data.markValue);
+                setSyncStatus('Marca compartida actualizada');
+                return;
+            }
+
+            const savedValue = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedValue !== null) await pushSharedMark();
+            else setSyncStatus('Marca compartida sin iniciar');
+        }
+
+        async function pushSharedMark(value = markValue) {
+            if (!remoteMark) return;
+
+            syncInProgress = true;
+            setSyncStatus('Guardando marca para todos...');
+            const { error } = await remoteMark
+                .from(SUPABASE_CONFIG.table)
+                .upsert({
+                    id: SUPABASE_CONFIG.rowId,
+                    data: { markValue: value },
+                    updated_at: new Date().toISOString()
+                });
+            syncInProgress = false;
+
+            if (error) {
+                setSyncStatus('Error al guardar la marca', true);
+                return;
+            }
+
+            setSyncStatus('Marca guardada para todos');
+        }
 
         function initCampaign() {
             const cha = document.getElementById('initial-cha').value;
             markValue = parseInt(cha);
-            localStorage.setItem('zyphiraMark', markValue);
+            localStorage.setItem(LOCAL_STORAGE_KEY, markValue);
             document.getElementById('setup-modal').style.display = 'none';
             updateVisuals();
             startHeartbeat();
+            pushSharedMark();
         }
 
         // --- LÓGICA DE MARCA ---
@@ -158,10 +287,11 @@
 
             markValue += (dir * val);
             if (markValue < 0) markValue = 0;
-            
-            localStorage.setItem('zyphiraMark', markValue);
+
+            localStorage.setItem(LOCAL_STORAGE_KEY, markValue);
             rollInput.value = ""; // Limpiar input
             updateVisuals();
+            pushSharedMark();
             
             // Efecto visual rápido de pulso al cambiar
             const svg = document.getElementById('mark-svg');
@@ -266,9 +396,10 @@
 
         function closeRevelation() { document.getElementById('revelation').style.display = 'none'; }
         
-        function confirmReset() {
+        async function confirmReset() {
             if(confirm("¿Seguro que quieres borrar todo el progreso de la marca?")) {
-                localStorage.removeItem('zyphiraMark');
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                await pushSharedMark(null);
                 location.reload();
             }
         }
