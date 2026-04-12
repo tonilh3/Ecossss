@@ -65,6 +65,26 @@
 			display: flex; align-items: center; justify-content: center;
 		}
 
+        .sync-status {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            z-index: 999;
+            max-width: 280px;
+            padding: 8px 12px;
+            background: rgba(20, 20, 20, 0.85);
+            color: var(--dnd-gold);
+            border: 1px solid rgba(194, 166, 90, 0.65);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+
+        .sync-status.error {
+            color: #ffb4b4;
+            border-color: #8c1616;
+        }
+
         /* ÁREA DE SCROLL - Ahora envuelve toda la altura del mapa */
         .scroll-area {
             position: relative;
@@ -249,6 +269,8 @@
     <i class="material-icons">download</i>
 </button>
 
+<div class="sync-status" id="sync-status">Guardado local</div>
+
 <button class="master-eye" onclick="toggleInterface()">
     <i class="material-icons" id="masterEyeIcon">visibility</i>
 </button>
@@ -313,19 +335,159 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     const months = ["Hammer/Profundo Invierno", "Alturiak/La Garra del Invierno", "Ches/La Garra de los Atardeceres", "Tarsakh/La Garra de las Tormentas", "Mirtul/El Deshielo", "Kythorn/La Época de las Flores", "Flamarûl/Marea de Verano", "Eleasias/Sol Alto", "Eleint/El Desvanecimiento", "Marpenoth/Caída de las Hojas", "Uktar/La Putrefacción", "Nightal/ El Cierre"];
-    
-    let db = JSON.parse(localStorage.getItem('cftd_journal_v2')) || { 
-        diary: [], clues: [], npcs: [], 
-        calendar: { day: 1, monthIdx: 0, year: 1500 } 
+
+    const LOCAL_STORAGE_KEY = 'cftd_journal_v2';
+    const SUPABASE_CONFIG = {
+        url: "https://ypoelohbvwdpfpxscmxc.supabase.co",
+        anonKey: "sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO",
+        table: "campaign_journal",
+        rowId: "ecos-costa"
     };
 
-    function toggleInterface() {
-        const content = document.getElementById('mainContent');
-        const icon = document.getElementById('masterEyeIcon');
-        content.classList.toggle('hidden');
-        icon.innerText = content.classList.contains('hidden') ? 'visibility_off' : 'visibility';
+    const EMPTY_JOURNAL = {
+        diary: [], clues: [], npcs: [],
+        calendar: { day: 1, monthIdx: 0, year: 1500 }
+    };
+
+    let db = loadLocalJournal();
+    let syncInProgress = false;
+    let remoteJournal = null;
+
+    if (isSupabaseConfigured() && window.supabase) {
+        remoteJournal = window.supabase.createClient(
+            SUPABASE_CONFIG.url,
+            SUPABASE_CONFIG.anonKey,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+    }
+
+    function loadLocalJournal() {
+        try {
+            return normalizeJournal(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)));
+        } catch (error) {
+            return copyJournal(EMPTY_JOURNAL);
+        }
+    }
+
+    function copyJournal(journal) {
+        return JSON.parse(JSON.stringify(journal));
+    }
+
+    function normalizeJournal(value) {
+        return {
+            diary: normalizeItems(value?.diary),
+            clues: normalizeItems(value?.clues),
+            npcs: normalizeItems(value?.npcs),
+            calendar: {
+                day: Number(value?.calendar?.day) || 1,
+                monthIdx: Number(value?.calendar?.monthIdx) || 0,
+                year: Number(value?.calendar?.year) || 1500
+            }
+        };
+    }
+
+    function normalizeItems(items) {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((item, index) => ({
+            id: String(item?.id || `item_${Date.now()}_${index}`),
+            title: String(item?.title || ''),
+            desc: String(item?.desc || ''),
+            date: String(item?.date || '')
+        }));
+    }
+
+    function isSupabaseConfigured() {
+        return Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
+    }
+
+    function setSyncStatus(text, isError = false) {
+        const el = document.getElementById('sync-status');
+        if (!el) return;
+        el.innerText = text;
+        el.classList.toggle('error', isError);
+    }
+
+    function escapeHTML(value) {
+        const div = document.createElement('div');
+        div.textContent = value ?? '';
+        return div.innerHTML;
+    }
+
+    async function initSharedJournal() {
+        if (!isSupabaseConfigured()) {
+            setSyncStatus('Guardado local: falta configurar Supabase');
+            render();
+            return;
+        }
+
+        if (!remoteJournal) {
+            setSyncStatus('No se pudo cargar Supabase', true);
+            render();
+            return;
+        }
+
+        setSyncStatus('Sincronizando bitácora...');
+        await pullSharedJournal();
+        window.addEventListener('focus', pullSharedJournal);
+        setInterval(pullSharedJournal, 15000);
+    }
+
+    async function pullSharedJournal() {
+        if (!remoteJournal || syncInProgress) return;
+
+        const { data, error } = await remoteJournal
+            .from(SUPABASE_CONFIG.table)
+            .select('data')
+            .eq('id', SUPABASE_CONFIG.rowId)
+            .maybeSingle();
+
+        if (error) {
+            setSyncStatus('Error al leer la bitácora compartida', true);
+            return;
+        }
+
+        if (data?.data) {
+            db = normalizeJournal(data.data);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
+            render();
+            setSyncStatus('Bitácora compartida actualizada');
+            return;
+        }
+
+        await pushSharedJournal();
+    }
+
+    async function pushSharedJournal() {
+        if (!remoteJournal) return;
+
+        syncInProgress = true;
+        setSyncStatus('Guardando para todos...');
+        const { error } = await remoteJournal
+            .from(SUPABASE_CONFIG.table)
+            .upsert({
+                id: SUPABASE_CONFIG.rowId,
+                data: db,
+                updated_at: new Date().toISOString()
+            });
+
+        syncInProgress = false;
+
+        if (error) {
+            setSyncStatus('Error al guardar para todos', true);
+            return;
+        }
+
+        setSyncStatus('Guardado para todos');
     }
 
     function switchTab(e, id) {
@@ -396,7 +558,8 @@
     }
 
     function save() {
-        localStorage.setItem('cftd_journal_v2', JSON.stringify(db));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
+        pushSharedJournal();
     }
 
     function render() {
@@ -411,22 +574,57 @@
             const container = document.getElementById(lists[type]);
             container.innerHTML = '';
             db[type].forEach(item => {
-                container.innerHTML += `
-                    <div class="location-card">
-                        <div class="loc-title">
-                            <span>${item.title} <span class="loc-tag">${item.date}</span></span>
-                            <div class="card-actions">
-                                <button onclick="toggleEye('${item.id}')"><i class="material-icons" id="eye_icon_${item.id}">visibility</i></button>
-                                <button onclick="deleteItem('${type}', '${item.id}')"><i class="material-icons">delete_outline</i></button>
-                            </div>
-                        </div>
-                        <div class="loc-desc" id="desc_${item.id}">${item.desc}</div>
-                    </div>`;
+                const card = document.createElement('div');
+                card.className = 'location-card';
+
+                const titleRow = document.createElement('div');
+                titleRow.className = 'loc-title';
+
+                const title = document.createElement('span');
+                title.append(document.createTextNode(item.title + ' '));
+
+                const date = document.createElement('span');
+                date.className = 'loc-tag';
+                date.textContent = item.date;
+                title.appendChild(date);
+
+                const actions = document.createElement('div');
+                actions.className = 'card-actions';
+
+                const eyeButton = document.createElement('button');
+                eyeButton.type = 'button';
+                eyeButton.onclick = () => toggleEye(item.id);
+
+                const eyeIcon = document.createElement('i');
+                eyeIcon.className = 'material-icons';
+                eyeIcon.id = 'eye_icon_' + item.id;
+                eyeIcon.textContent = 'visibility';
+                eyeButton.appendChild(eyeIcon);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.onclick = () => deleteItem(type, item.id);
+
+                const deleteIcon = document.createElement('i');
+                deleteIcon.className = 'material-icons';
+                deleteIcon.textContent = 'delete_outline';
+                deleteButton.appendChild(deleteIcon);
+
+                actions.append(eyeButton, deleteButton);
+                titleRow.append(title, actions);
+
+                const desc = document.createElement('div');
+                desc.className = 'loc-desc';
+                desc.id = 'desc_' + item.id;
+                desc.textContent = item.desc;
+
+                card.append(titleRow, desc);
+                container.appendChild(card);
             });
         });
     }
 
-    render();
+    initSharedJournal();
 	// Lógica de Lupa Dinámica
 	document.getElementById('mapCont').addEventListener('mousemove', function(e) {
 		if (!document.body.classList.contains('zoom-active')) return;
@@ -462,12 +660,12 @@
 		let contenidoBody = `<h1 style="color:var(--dnd-gold); font-family:Cinzel; text-align:center;">Bitácora: Ecos en la Costa</h1>`;
 		
 		secciones.forEach(sec => {
-			contenidoBody += `<h2 style="color:var(--dnd-gold); font-family:Cinzel; border-bottom:1px solid; margin-top:30px;">${sec.t}</h2>`;
+			contenidoBody += `<h2 style="color:var(--dnd-gold); font-family:Cinzel; border-bottom:1px solid; margin-top:30px;">${escapeHTML(sec.t)}</h2>`;
 			sec.d.forEach(item => {
 				contenidoBody += `
 				<div class="location-card" style="display:block; margin-bottom:10px;">
-					<div class="loc-title"><strong>${item.title}</strong> <span>${item.date}</span></div>
-					<div style="display:block; margin-top:10px; color:#ccc;">${item.desc}</div>
+					<div class="loc-title"><strong>${escapeHTML(item.title)}</strong> <span>${escapeHTML(item.date)}</span></div>
+					<div style="display:block; margin-top:10px; color:#ccc;">${escapeHTML(item.desc)}</div>
 				</div>`;
 			});
 		});
