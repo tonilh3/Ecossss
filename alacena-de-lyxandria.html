@@ -757,19 +757,58 @@
             rowId: 'alacena-lyxandria'
         };
 
+        const recipe = (id, name, rarity, value, materialCost, time, tools, level, requirement, color, ingredients) => ({
+            id,
+            name,
+            rarity,
+            effect: `Valor: ${value}. Materiales: ${materialCost}. Tiempo: ${time}. ${tools}. Nivel: ${level}. Requisito: ${requirement}.`,
+            color,
+            ingredients
+        });
+
         const RECIPES = [
-            { id: 'curacion', name: 'Poción de curación', rarity: 'Común', effect: 'Restaura 2d4 + 2 puntos de golpe.', color: '#c44d8d', ingredients: ['Pétalos de campana escarlata', 'Miel de abeja lunar', 'Agua bendecida'] },
-            { id: 'curacion-mayor', name: 'Poción de curación mayor', rarity: 'Poco común', effect: 'Restaura 4d4 + 4 puntos de golpe.', color: '#d94c5f', ingredients: ['Raíz de mandrágora dulce', 'Sangre de troll purificada', 'Sal de plata'] },
-            { id: 'curacion-superior', name: 'Poción de curación superior', rarity: 'Rara', effect: 'Restaura 8d4 + 8 puntos de golpe.', color: '#e85d75', ingredients: ['Lágrima de unicornio seca', 'Corazón de rosa negra', 'Polvo de rubí'] },
-            { id: 'curacion-suprema', name: 'Poción de curación suprema', rarity: 'Muy rara', effect: 'Restaura 10d4 + 20 puntos de golpe.', color: '#ff6f91', ingredients: ['Rocío de amanecer celestial', 'Escama de couatl', 'Azafrán de resurrección'] },
-            { id: 'antitoxina', name: 'Antitoxina', rarity: 'Común', effect: 'Ayuda a resistir venenos durante 1 hora.', color: '#2f8f5b', ingredients: ['Carbón de sauce blanco', 'Hojas de menta de cueva', 'Bilis de víbora diluida'] },
-            { id: 'resistencia', name: 'Poción de resistencia', rarity: 'Poco común', effect: 'Otorga resistencia a un tipo de daño.', color: '#2c8f8a', ingredients: ['Ceniza elemental', 'Sal de hierro frío', 'Aceite de escarabajo'] },
-            { id: 'aliento-fuego', name: 'Poción de aliento de fuego', rarity: 'Poco común', effect: 'Permite exhalar llamas brevemente.', color: '#e4572e', ingredients: ['Pimienta de salamandra', 'Carbón de draco', 'Alcohol de grano negro'] },
-            { id: 'trepar', name: 'Poción de trepar', rarity: 'Común', effect: 'Facilita trepar superficies difíciles.', color: '#8c6a3d', ingredients: ['Seda de araña gigante', 'Resina de hiedra', 'Uña de gecko triturada'] },
-            { id: 'invisibilidad', name: 'Poción de invisibilidad', rarity: 'Muy rara', effect: 'Vuelve invisible a quien la bebe durante un tiempo.', color: '#9fd0ff', ingredients: ['Cristal de niebla', 'Escama de pez fantasma', 'Sombra embotellada'] },
-            { id: 'heroismo', name: 'Poción de heroísmo', rarity: 'Rara', effect: 'Inspira valor y vigor mágico.', color: '#d6a83d', ingredients: ['Sangre de león dorado', 'Vino de batalla', 'Semilla de roble solar'] },
-            { id: 'velocidad', name: 'Poción de velocidad', rarity: 'Muy rara', effect: 'Acelera cuerpo y reflejos.', color: '#6f58c9', ingredients: ['Polvo de rayo atrapado', 'Pluma de colibrí feérico', 'Mercurio dulce'] },
-            { id: 'respirar-agua', name: 'Poción de respirar bajo el agua', rarity: 'Poco común', effect: 'Permite respirar bajo el agua.', color: '#246fc2', ingredients: ['Alga de cristal', 'Branquia de kuo-toa seca', 'Perla molida'] }
+            recipe('curacion', 'Poción de curación', 'Común', '50 po', '25 po', '2 días', 'Kit de herbalismo', '-', '-', '#c44d8d', ['Pétalos de campana escarlata', 'Miel de abeja lunar', 'Agua bendecida']),
+            recipe('gran-curacion', 'Poción de gran curación', 'Infrecuente', '100 po', '50 po', '4 días', 'Kit de herbalismo', '3', 'Prueba de competencia con éxito', '#d94c5f', ['Raíz de mandrágora dulce', 'Savia de abedul rojo', 'Sal de plata']),
+            recipe('curacion-superior', 'Poción de curación superior', 'Raro', '500 po', '250 po', '20 días', 'Kit de herbalismo', '6', 'Prueba de competencia con éxito', '#e85d75', ['Lágrima de unicornio seca', 'Corazón de rosa negra', 'Polvo de rubí']),
+            recipe('curacion-suprema', 'Poción de curación suprema', 'Muy raro', '5000 po', '2500 po', '200 días', 'Kit de herbalismo', '11', 'Prueba de competencia con éxito', '#ff6f91', ['Rocío de amanecer celestial', 'Escama de couatl', 'Azafrán de resurrección']),
+            recipe('acido', 'Ácido', 'Común', '25 po', '13 po', '1 día', 'Suministros alquímicos', '-', '-', '#7fa83b', ['Cristales de vitriolo', 'Bilis de cieno', 'Agua de lluvia agria']),
+            recipe('antitoxina', 'Antitoxina', 'Común', '50 po', '25 po', '2 días', 'Kit de herbalismo', '-', '-', '#2f8f5b', ['Carbón de sauce blanco', 'Hojas de menta de cueva', 'Bilis de víbora diluida']),
+            recipe('fuego-alquimista', 'Fuego de alquimista', 'Común', '50 po', '25 po', '2 días', 'Suministros alquímicos', '-', '-', '#e4572e', ['Pimienta de salamandra', 'Aceite de brea clara', 'Yesca de azufre']),
+            recipe('trepar', 'Poción de trepar', 'Común', '50 po', '25 po', '2 días', 'Suministros alquímicos', '-', '-', '#8c6a3d', ['Seda de araña gigante', 'Resina de hiedra', 'Uña de gecko triturada']),
+            recipe('aceite-viscosidad', 'Aceite de viscosidad', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Espacio de conjuros de 4º nivel', '#b9a34c', ['Aceite de babosa ámbar', 'Cera de panal negro', 'Polvo de resina pegajosa']),
+            recipe('filtro-amor', 'Filtro de amor', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Redoma creada bajo la luz de la luna', '#e56bb1', ['Pétalo de rosa nocturna', 'Vino de granada dulce', 'Rocío de luna llena']),
+            recipe('aliento-fuego', 'Poción de aliento de fuego', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Sangre de dragón, dracónido o réptil rojo', '#f05a2a', ['Carbón de draco', 'Canela de salamandra', 'Alcohol de grano negro']),
+            recipe('amistad-animal', 'Poción de amistad animal', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de herbalismo', '3', 'Espacio de conjuros de nivel 1', '#79b86b', ['Bellotas de roble amable', 'Leche de cabra feérica', 'Hojas de trébol dorado']),
+            recipe('crecimiento', 'Poción de crecimiento', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Espacio de conjuros de nivel 2', '#c98242', ['Semilla de calabaza gigante', 'Hueso de ogro molido', 'Savia de secuoya joven']),
+            recipe('fuerza-gigante-colinas', 'Poción de fuerza de gigante de las colinas', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Uña o pelo de gigante de las colinas', '#9c6a36', ['Uña de gigante de las colinas', 'Malta de roca', 'Raíz de montaña']),
+            recipe('resistencia', 'Poción de resistencia', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Según tipo de resistencia. Espacio de conjuros de nivel 3', '#2c8f8a', ['Ceniza elemental', 'Sal de hierro frío', 'Aceite de escarabajo']),
+            recipe('respiracion-acuatica', 'Poción de respiración acuática', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de herbalismo', '3', 'Espacio de conjuros de nivel 3', '#246fc2', ['Alga de cristal', 'Branquia de kuo-toa seca', 'Perla molida']),
+            recipe('veneno', 'Poción de veneno', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de venenos', '3', 'Ver nota de fallo alquímico', '#4d8f36', ['Bilis de víbora negra', 'Seta de ataúd', 'Alcohol de acónito']),
+            recipe('polvo-desaparicion', 'Polvo de desaparición', 'Infrecuente', '250 po', '125 po', '10 días', 'Suministros alquímicos', '3', 'Polvo de quimera o pestaña gris', '#c7d6d6', ['Polvo de quimera', 'Ceniza de vela invisible', 'Pestaña gris']),
+            recipe('polvo-estornudos-asfixia', 'Polvo de estornudos y asfixia', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de venenos', '3', 'Ver nota de fallo alquímico', '#d8c99a', ['Moho de catacumba', 'Polen de mandrágora', 'Talco de garganta seca']),
+            recipe('polvo-sequedad', 'Polvo de sequedad', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de venenos', '3', 'Espacio de conjuros de nivel 1', '#d0c08d', ['Sal de desierto blanco', 'Arena de reloj roto', 'Lágrima evaporada']),
+            recipe('unguento-keoghtom', 'Ungüento de Keoghtom', 'Infrecuente', '250 po', '125 po', '10 días', 'Kit de herbalismo', '3', 'Un cactus raro del desierto', '#78a35a', ['Pulpa de cactus raro', 'Aceite de oliva santo', 'Flor de aloe plateada']),
+            recipe('aceite-etereidad', 'Aceite de etereidad', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Espacio de conjuros de nivel 7', '#9db4ff', ['Niebla de frontera etérea', 'Aceite de fantasma', 'Polvo de ópalo lechoso']),
+            recipe('elixir-salud', 'Elixir de salud', 'Raro', '500 po', '250 po', '20 días', 'Kit de herbalismo', '6', 'Espacio de conjuros de nivel 2', '#68b65d', ['Raíz de panacea', 'Miel de abeja dorada', 'Agua de fuente pura']),
+            recipe('clarividencia', 'Poción de clarividencia', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Espacio de conjuros de nivel 3', '#7b72c9', ['Ojo de ágata', 'Tinta de calamar vidente', 'Cristal de campana']),
+            recipe('disminucion', 'Poción de disminución', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', '-', '#6aa0c8', ['Semilla de dedalera azul', 'Hueso de ratón sabio', 'Mercurio encogido']),
+            recipe('forma-gaseosa', 'Poción de forma gaseosa', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', '-', '#bfc7d4', ['Vapor de lago frío', 'Pluma de nube', 'Sal de niebla']),
+            recipe('fuerza-gigante-frio', 'Poción de fuerza de gigante del frío', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Uña o pelo de gigante del frío', '#9fd0ff', ['Pelo de gigante del frío', 'Hielo que no funde', 'Liquen polar']),
+            recipe('fuerza-gigante-fuego', 'Poción de fuerza de gigante del fuego', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Uña o pelo de gigante del fuego', '#d94b35', ['Pelo de gigante del fuego', 'Escoria de forja viva', 'Pimienta volcánica']),
+            recipe('fuerza-gigante-piedra', 'Poción de fuerza de gigante de la piedra', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Uña o pelo de gigante de la piedra', '#8f8a79', ['Uña de gigante de la piedra', 'Granito pulverizado', 'Musgo de risco']),
+            recipe('heroismo', 'Poción de heroísmo', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Prueba de competencia exitosa secreta', '#d6a83d', ['Sangre de león dorado', 'Vino de batalla', 'Semilla de roble solar']),
+            recipe('invulnerabilidad', 'Poción de invulnerabilidad', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Prueba de competencia exitosa secreta', '#c7c2b4', ['Escama de tortuga antigua', 'Hierro de estrella limado', 'Aceite de obsidiana']),
+            recipe('lectura-mental', 'Poción de lectura mental', 'Raro', '500 po', '250 po', '20 días', 'Suministros alquímicos', '6', 'Espacio de conjuros de nivel 2. Tentáculo de ilícido', '#7d5aa6', ['Tentáculo de ilícido', 'Té de loto azul', 'Cristal de pensamiento']),
+            recipe('aceite-penetracion', 'Aceite de penetración', 'Muy raro', '1000 po', '500 po', '40 días', 'Kit de venenos', '11', 'Debe crearse en una mina de plata', '#b3a46c', ['Aceite de aguja plateada', 'Lima de adamantina', 'Polvo de mina lunar']),
+            recipe('fuerza-gigante-nubes', 'Poción de fuerza de gigante de las nubes', 'Muy raro', '1000 po', '500 po', '40 días', 'Suministros alquímicos', '11', 'Uña o pelo de gigante de las nubes', '#b8d5ff', ['Pelo de gigante de las nubes', 'Agua de tormenta alta', 'Pluma de roc blanco']),
+            recipe('invisibilidad', 'Poción de invisibilidad', 'Muy raro', '1000 po', '500 po', '40 días', 'Suministros alquímicos', '11', 'Espacio de conjuros de nivel 2', '#9fd0ff', ['Cristal de niebla', 'Escama de pez fantasma', 'Sombra embotellada']),
+            recipe('longevidad', 'Poción de longevidad', 'Muy raro', '1000 po', '500 po', '40 días', 'Suministros alquímicos', '11', 'Pelo o sangre de unicornio', '#f0c7d5', ['Sangre de unicornio', 'Semilla de árbol viejo', 'Rocío del primer alba']),
+            recipe('velocidad', 'Poción de velocidad', 'Muy raro', '1000 po', '500 po', '40 días', 'Suministros alquímicos', '11', 'Espacio de conjuros de nivel 3', '#6f58c9', ['Polvo de rayo atrapado', 'Pluma de colibrí feérico', 'Mercurio dulce']),
+            recipe('vitalidad', 'Poción de vitalidad', 'Muy raro', '1000 po', '500 po', '40 días', 'Kit de herbalismo', '11', 'Sangre de troll', '#db4f74', ['Sangre de troll', 'Raíz de corazón rojo', 'Salvia de primavera']),
+            recipe('volar', 'Poción de volar', 'Muy raro', '1000 po', '500 po', '40 días', 'Suministros alquímicos', '11', 'Espacio de conjuros de nivel 3', '#77b8d8', ['Pluma de grifo', 'Espuma de nube', 'Azúcar de viento']),
+            recipe('disolvente-universal', 'Disolvente universal', 'Legendario', '5000 po', '2500 po', '200 días', 'Suministros alquímicos', '17', 'Agua del Limbo', '#9ed0c2', ['Agua del Limbo', 'Sal de realidad', 'Vidrio líquido']),
+            recipe('pegamento-soberano', 'Pegamento soberano', 'Legendario', '5000 po', '2500 po', '200 días', 'Suministros alquímicos', '17', 'Arcilla de Mecanus', '#c7a15c', ['Arcilla de Mecanus', 'Resina de árbol inmóvil', 'Polvo de contrato']),
+            recipe('fuerza-gigante-tormentas', 'Poción de fuerza de gigante de las tormentas', 'Legendario', '5000 po', '2500 po', '200 días', 'Suministros alquímicos', '17', 'Uña o pelo de gigante de las tormentas', '#5368c9', ['Pelo de gigante de las tormentas', 'Relámpago embotellado', 'Sal de marea negra'])
         ];
 
         const EMPTY_DATA = { potions: [], dissections: [] };
@@ -925,7 +964,7 @@
         function renderRecipeState() {
             document.getElementById('recipe-meta').innerHTML = `
                 <div><strong>Rareza:</strong> ${selectedRecipe.rarity}</div>
-                <div><strong>Efecto:</strong> ${selectedRecipe.effect}</div>
+                <div><strong>Datos:</strong> ${selectedRecipe.effect}</div>
             `;
 
             const fill = Math.round((recipeStep / selectedRecipe.ingredients.length) * 100);
@@ -1018,7 +1057,7 @@
                 <article class="potion-record" style="--brew-color:${safeColor(potion.color)}">
                     <h3>${escapeHTML(potion.name)}</h3>
                     <p><strong>Rareza:</strong> ${escapeHTML(potion.rarity || '')}</p>
-                    <p>${escapeHTML(potion.effect || '')}</p>
+                    <p><strong>Datos:</strong> ${escapeHTML(potion.effect || '')}</p>
                     <p class="muted">Preparada: ${escapeHTML(potion.madeAt || '')}</p>
                     <button class="text-btn" type="button" data-remove-potion="${escapeHTML(potion.id)}">Retirar</button>
                 </article>
