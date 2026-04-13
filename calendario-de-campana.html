@@ -537,7 +537,7 @@
         }
 
         function compareEventsByDate(a, b) {
-            return dateToIndex(a.date) - dateToIndex(b.date)
+            return dateToIndex(b.date) - dateToIndex(a.date)
                 || a.title.localeCompare(b.title, 'es')
                 || a.id.localeCompare(b.id);
         }
