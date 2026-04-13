@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario de Campaña</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --gold: #c2a65a;
+            --ink: #0f1010;
+            --paper: #f1e2be;
+            --panel: rgba(18, 18, 16, 0.88);
+            --line: rgba(194, 166, 90, 0.42);
+            --text: #f6ebcf;
+            --muted: #cbbd9d;
+            --red: #9d2f2f;
+            --green: #3a8f5a;
+            --blue: #3f7ca8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: 'Quicksand', sans-serif;
+            background:
+                linear-gradient(rgba(0,0,0,0.68), rgba(0,0,0,0.86)),
+                url('swordcoast.webp') center / cover fixed;
+        }
+
+        .shell {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 0 48px;
+        }
+
+        header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 22px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Cinzel', serif;
+            margin: 0;
+            color: var(--gold);
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 4rem);
+        }
+
+        h2 {
+            font-size: 1.35rem;
+            margin-bottom: 14px;
+        }
+
+        h3 {
+            color: #fff2c9;
+            font-size: 1.05rem;
+        }
+
+        .eyebrow {
+            margin: 0 0 6px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0;
+            font-weight: 700;
+        }
+
+        .sync-status {
+            border: 1px solid var(--line);
+            background: rgba(0,0,0,0.62);
+            color: var(--gold);
+            border-radius: 6px;
+            padding: 10px 12px;
+            min-width: min(260px, 100%);
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .sync-status.error {
+            color: #ff9d8a;
+            border-color: var(--red);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.4fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 18px 38px rgba(0,0,0,0.38);
+        }
+
+        .date-panel {
+            display: grid;
+            gap: 16px;
+        }
+
+        .current-date {
+            border: 1px solid rgba(241,226,190,0.34);
+            border-radius: 8px;
+            padding: 18px;
+            background: rgba(0,0,0,0.28);
+        }
+
+        .current-day {
+            font-size: 3.2rem;
+            line-height: 1;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .current-month {
+            color: var(--gold);
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .current-year,
+        .muted {
+            color: var(--muted);
+        }
+
+        .date-actions,
+        .form-grid,
+        .filters {
+            display: grid;
+            gap: 10px;
+        }
+
+        .date-actions {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .form-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            color: #f7e7bf;
+            font-weight: 700;
+        }
+
+        input,
+        select,
+        textarea,
+        button {
+            font: inherit;
+            border-radius: 6px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            border: 1px solid rgba(194,166,90,0.48);
+            background: rgba(0,0,0,0.36);
+            color: var(--text);
+            padding: 10px 11px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 92px;
+        }
+
+        button {
+            min-height: 42px;
+            border: 1px solid rgba(194,166,90,0.58);
+            background: rgba(194,166,90,0.13);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.18s ease, transform 0.18s ease;
+        }
+
+        button:hover {
+            background: rgba(194,166,90,0.24);
+            transform: translateY(-1px);
+        }
+
+        .primary-btn {
+            background: var(--gold);
+            color: var(--ink);
+        }
+
+        .danger-btn {
+            border-color: rgba(157,47,47,0.78);
+            color: #ffd0c8;
+        }
+
+        .events-panel {
+            display: grid;
+            gap: 18px;
+        }
+
+        .event-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .event-card {
+            border-left: 5px solid var(--event-color, var(--gold));
+            background: rgba(0,0,0,0.32);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .event-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: #fff3ce;
+            font-size: 0.84rem;
+            font-weight: 700;
+        }
+
+        .tag.done {
+            background: rgba(58,143,90,0.35);
+        }
+
+        .tag.urgent {
+            background: rgba(157,47,47,0.45);
+        }
+
+        .event-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .icon-btn {
+            width: 40px;
+            min-height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .empty-state {
+            border: 1px dashed rgba(194,166,90,0.5);
+            border-radius: 8px;
+            padding: 18px;
+            color: var(--muted);
+            background: rgba(0,0,0,0.25);
+        }
+
+        @media (max-width: 860px) {
+            header,
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .date-actions,
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <header>
+            <div>
+                <p class="eyebrow">Agenda compartida</p>
+                <h1>Calendario de Campaña</h1>
+            </div>
+            <div class="sync-status" id="sync-status">Guardado local</div>
+        </header>
+
+        <div class="layout">
+            <section class="date-panel">
+                <div class="panel current-date">
+                    <h2>Fecha actual</h2>
+                    <div class="current-day" id="current-day">1</div>
+                    <div class="current-month" id="current-month">Hammer</div>
+                    <div class="current-year" id="current-year">1500 CV</div>
+                    <p class="muted" id="current-dekhana">1ª dek</p>
+                    <div class="date-actions">
+                        <button type="button" data-shift="-10">-10 días</button>
+                        <button type="button" data-shift="-1">-1 día</button>
+                        <button type="button" data-shift="1">+1 día</button>
+                        <button type="button" data-shift="10">+10 días</button>
+                    </div>
+                </div>
+
+                <form class="panel" id="date-form">
+                    <h2>Ajustar fecha</h2>
+                    <div class="form-grid">
+                        <label>Día
+                            <input type="number" id="date-day" min="1" max="30">
+                        </label>
+                        <label>Año
+                            <input type="number" id="date-year" min="1">
+                        </label>
+                        <label class="full">Mes
+                            <select id="date-month"></select>
+                        </label>
+                        <button class="primary-btn full" type="submit">Guardar fecha</button>
+                    </div>
+                </form>
+
+                <form class="panel" id="event-form">
+                    <h2>Nuevo hito</h2>
+                    <div class="form-grid">
+                        <label class="full">Título
+                            <input type="text" id="event-title" placeholder="La luna llena sobre Valdrasen">
+                        </label>
+                        <label>Tipo
+                            <select id="event-type">
+                                <option value="Misión">Misión</option>
+                                <option value="Viaje">Viaje</option>
+                                <option value="Festival">Festival</option>
+                                <option value="Luna">Luna</option>
+                                <option value="Plazo">Plazo</option>
+                                <option value="Rumor">Rumor</option>
+                                <option value="Personal">Personal</option>
+                            </select>
+                        </label>
+                        <label>Estado
+                            <select id="event-status">
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="En curso">En curso</option>
+                                <option value="Urgente">Urgente</option>
+                                <option value="Hecho">Hecho</option>
+                            </select>
+                        </label>
+                        <label>Día
+                            <input type="number" id="event-day" min="1" max="30">
+                        </label>
+                        <label>Año
+                            <input type="number" id="event-year" min="1">
+                        </label>
+                        <label class="full">Mes
+                            <select id="event-month"></select>
+                        </label>
+                        <label class="full">Notas
+                            <textarea id="event-notes" placeholder="Qué ocurre, quién lo pidió, qué pasa si se retrasa..."></textarea>
+                        </label>
+                        <button class="primary-btn full" type="submit">Añadir al calendario</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="events-panel">
+                <div class="panel">
+                    <h2>Próximos hitos</h2>
+                    <div class="event-list" id="upcoming-events"></div>
+                </div>
+
+                <div class="panel">
+                    <h2>Todo el calendario</h2>
+                    <div class="filters">
+                        <label>Filtrar
+                            <select id="status-filter">
+                                <option value="all">Todos</option>
+                                <option value="active">Pendientes y en curso</option>
+                                <option value="Urgente">Urgentes</option>
+                                <option value="Hecho">Hechos</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="event-list" id="all-events"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const MONTHS = [
+            'Hammer / Profundo Invierno',
+            'Alturiak / La Garra del Invierno',
+            'Ches / La Garra de los Atardeceres',
+            'Tarsakh / La Garra de las Tormentas',
+            'Mirtul / El Deshielo',
+            'Kythorn / La Época de las Flores',
+            'Flamarûl / Marea de Verano',
+            'Eleasias / Sol Alto',
+            'Eleint / El Desvanecimiento',
+            'Marpenoth / Caída de las Hojas',
+            'Uktar / La Putrefacción',
+            'Nightal / El Cierre'
+        ];
+
+        const TYPE_COLORS = {
+            'Misión': '#c2a65a',
+            'Viaje': '#3f7ca8',
+            'Festival': '#3a8f5a',
+            'Luna': '#9a83c7',
+            'Plazo': '#9d2f2f',
+            'Rumor': '#c47e48',
+            'Personal': '#d1749b'
+        };
+
+        const LOCAL_STORAGE_KEY = 'ecos_campaign_calendar_v1';
+        const SUPABASE_CONFIG = {
+            url: 'https://ypoelohbvwdpfpxscmxc.supabase.co',
+            anonKey: 'sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO',
+            table: 'campaign_journal',
+            rowId: 'campaign-calendar'
+        };
+
+        const EMPTY_CALENDAR = {
+            current: { day: 1, monthIdx: 0, year: 1500 },
+            events: []
+        };
+
+        let calendar = loadLocalCalendar();
+        let remoteCalendar = null;
+        let syncInProgress = false;
+
+        if (window.supabase) {
+            remoteCalendar = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
+                auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+            });
+        }
+
+        function copyCalendar(value) {
+            return JSON.parse(JSON.stringify(value));
+        }
+
+        function loadLocalCalendar() {
+            try {
+                return normalizeCalendar(JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)));
+            } catch (error) {
+                return copyCalendar(EMPTY_CALENDAR);
+            }
+        }
+
+        function normalizeCalendar(value) {
+            return {
+                current: normalizeDate(value?.current),
+                events: Array.isArray(value?.events) ? value.events.map(normalizeEvent).filter(Boolean) : []
+            };
+        }
+
+        function normalizeDate(value) {
+            return {
+                day: clamp(Number.parseInt(value?.day, 10) || 1, 1, 30),
+                monthIdx: clamp(Number.parseInt(value?.monthIdx, 10) || 0, 0, 11),
+                year: Math.max(1, Number.parseInt(value?.year, 10) || 1500)
+            };
+        }
+
+        function normalizeEvent(event, index = 0) {
+            if (!event?.title) return null;
+            const date = normalizeDate(event.date || event);
+            return {
+                id: String(event.id || `event_${Date.now()}_${index}`),
+                title: String(event.title || ''),
+                type: String(event.type || 'Misión'),
+                status: String(event.status || 'Pendiente'),
+                notes: String(event.notes || ''),
+                date
+            };
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function dateToIndex(date) {
+            return ((date.year - 1) * 360) + (date.monthIdx * 30) + date.day;
+        }
+
+        function saveLocalCalendar() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(calendar));
+        }
+
+        function setSyncStatus(text, isError = false) {
+            const el = document.getElementById('sync-status');
+            el.textContent = text;
+            el.classList.toggle('error', isError);
+        }
+
+        async function initSharedCalendar() {
+            if (!remoteCalendar) {
+                setSyncStatus('Guardado local: Supabase no disponible', true);
+                render();
+                return;
+            }
+            setSyncStatus('Sincronizando calendario...');
+            await pullSharedCalendar();
+            window.addEventListener('focus', pullSharedCalendar);
+            setInterval(pullSharedCalendar, 15000);
+        }
+
+        async function pullSharedCalendar() {
+            if (!remoteCalendar || syncInProgress) return;
+            const { data, error } = await remoteCalendar
+                .from(SUPABASE_CONFIG.table)
+                .select('data')
+                .eq('id', SUPABASE_CONFIG.rowId)
+                .maybeSingle();
+
+            if (error) {
+                setSyncStatus('Error al leer el calendario compartido', true);
+                render();
+                return;
+            }
+
+            if (data?.data) {
+                calendar = normalizeCalendar(data.data);
+                saveLocalCalendar();
+                render();
+                setSyncStatus('Calendario compartido actualizado');
+                return;
+            }
+
+            await pushSharedCalendar();
+        }
+
+        async function pushSharedCalendar() {
+            saveLocalCalendar();
+            if (!remoteCalendar) return;
+            syncInProgress = true;
+            setSyncStatus('Guardando calendario para todos...');
+            const { error } = await remoteCalendar
+                .from(SUPABASE_CONFIG.table)
+                .upsert({ id: SUPABASE_CONFIG.rowId, data: calendar, updated_at: new Date().toISOString() });
+
+            syncInProgress = false;
+
+            if (error) {
+                setSyncStatus('Error al guardar el calendario', true);
+                return;
+            }
+            setSyncStatus('Calendario guardado para todos');
+        }
+
+        function saveAndRender() {
+            saveLocalCalendar();
+            render();
+            pushSharedCalendar();
+        }
+
+        function formatDate(date) {
+            return `${date.day} de ${MONTHS[date.monthIdx]} de ${date.year} CV`;
+        }
+
+        function formatDistance(date) {
+            const diff = dateToIndex(date) - dateToIndex(calendar.current);
+            if (diff === 0) return 'Hoy';
+            if (diff === 1) return 'Mañana';
+            if (diff > 1) return `En ${diff} días`;
+            if (diff === -1) return 'Ayer';
+            return `Hace ${Math.abs(diff)} días`;
+        }
+
+        function shiftCurrentDate(days) {
+            let index = dateToIndex(calendar.current) + days;
+            index = Math.max(1, index);
+            const year = Math.floor((index - 1) / 360);
+            const dayOfYear = (index - 1) % 360;
+            calendar.current = {
+                year: year + 1,
+                monthIdx: Math.floor(dayOfYear / 30),
+                day: (dayOfYear % 30) + 1
+            };
+            saveAndRender();
+        }
+
+        function setSelectOptions(select) {
+            select.innerHTML = MONTHS.map((month, index) => `<option value="${index}">${month}</option>`).join('');
+        }
+
+        function fillDateInputs() {
+            document.getElementById('date-day').value = calendar.current.day;
+            document.getElementById('date-month').value = calendar.current.monthIdx;
+            document.getElementById('date-year').value = calendar.current.year;
+            document.getElementById('event-day').value = calendar.current.day;
+            document.getElementById('event-month').value = calendar.current.monthIdx;
+            document.getElementById('event-year').value = calendar.current.year;
+        }
+
+        function render() {
+            const current = calendar.current;
+            document.getElementById('current-day').textContent = current.day;
+            document.getElementById('current-month').textContent = MONTHS[current.monthIdx];
+            document.getElementById('current-year').textContent = `${current.year} CV`;
+            document.getElementById('current-dekhana').textContent = `${Math.ceil(current.day / 10)}ª dek de ${MONTHS[current.monthIdx].split(' / ')[0]}`;
+            fillDateInputs();
+            renderEvents();
+        }
+
+        function renderEvents() {
+            const currentIndex = dateToIndex(calendar.current);
+            const sortedEvents = [...calendar.events].sort((a, b) => dateToIndex(a.date) - dateToIndex(b.date));
+            const upcoming = sortedEvents
+                .filter(event => dateToIndex(event.date) >= currentIndex && event.status !== 'Hecho')
+                .slice(0, 6);
+
+            renderEventList(document.getElementById('upcoming-events'), upcoming, 'No hay próximos hitos pendientes.');
+
+            const filter = document.getElementById('status-filter').value;
+            const filteredEvents = sortedEvents.filter(event => {
+                if (filter === 'all') return true;
+                if (filter === 'active') return event.status !== 'Hecho';
+                return event.status === filter;
+            });
+            renderEventList(document.getElementById('all-events'), filteredEvents, 'Todavía no hay hitos en el calendario.');
+        }
+
+        function renderEventList(container, events, emptyText) {
+            container.innerHTML = '';
+            if (!events.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = emptyText;
+                container.appendChild(empty);
+                return;
+            }
+
+            events.forEach(event => container.appendChild(createEventCard(event)));
+        }
+
+        function createEventCard(event) {
+            const card = document.createElement('article');
+            card.className = 'event-card';
+            card.style.setProperty('--event-color', TYPE_COLORS[event.type] || TYPE_COLORS['Misión']);
+
+            const head = document.createElement('div');
+            head.className = 'event-head';
+
+            const title = document.createElement('h3');
+            title.textContent = event.title;
+
+            const actions = document.createElement('div');
+            actions.className = 'event-actions';
+
+            const doneButton = document.createElement('button');
+            doneButton.className = 'icon-btn';
+            doneButton.type = 'button';
+            doneButton.title = event.status === 'Hecho' ? 'Marcar como pendiente' : 'Marcar como hecho';
+            doneButton.dataset.eventAction = 'toggle-done';
+            doneButton.dataset.eventId = event.id;
+            doneButton.innerHTML = `<i class="material-icons">${event.status === 'Hecho' ? 'undo' : 'check'}</i>`;
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'icon-btn danger-btn';
+            deleteButton.type = 'button';
+            deleteButton.title = 'Eliminar';
+            deleteButton.dataset.eventAction = 'delete';
+            deleteButton.dataset.eventId = event.id;
+            deleteButton.innerHTML = '<i class="material-icons">delete_outline</i>';
+
+            actions.append(doneButton, deleteButton);
+            head.append(title, actions);
+
+            const meta = document.createElement('div');
+            meta.className = 'event-meta';
+            [
+                formatDate(event.date),
+                event.type,
+                event.status,
+                formatDistance(event.date)
+            ].forEach((text, index) => {
+                const tag = document.createElement('span');
+                tag.className = 'tag';
+                if (text === 'Hecho') tag.classList.add('done');
+                if (text === 'Urgente') tag.classList.add('urgent');
+                if (index === 0) {
+                    const icon = document.createElement('i');
+                    icon.className = 'material-icons';
+                    icon.textContent = 'event';
+                    tag.append(icon);
+                    tag.append(document.createTextNode(text));
+                } else {
+                    tag.textContent = text;
+                }
+                meta.appendChild(tag);
+            });
+
+            const notes = document.createElement('p');
+            notes.className = 'muted';
+            notes.textContent = event.notes || 'Sin notas.';
+
+            card.append(head, meta, notes);
+            return card;
+        }
+
+        function setupForms() {
+            setSelectOptions(document.getElementById('date-month'));
+            setSelectOptions(document.getElementById('event-month'));
+
+            document.querySelectorAll('[data-shift]').forEach(button => {
+                button.addEventListener('click', () => shiftCurrentDate(Number(button.dataset.shift)));
+            });
+
+            document.getElementById('date-form').addEventListener('submit', event => {
+                event.preventDefault();
+                calendar.current = normalizeDate({
+                    day: document.getElementById('date-day').value,
+                    monthIdx: document.getElementById('date-month').value,
+                    year: document.getElementById('date-year').value
+                });
+                saveAndRender();
+            });
+
+            document.getElementById('event-form').addEventListener('submit', event => {
+                event.preventDefault();
+                const title = document.getElementById('event-title').value.trim();
+                if (!title) {
+                    alert('Pon un título para el hito.');
+                    return;
+                }
+
+                calendar.events.push({
+                    id: 'event_' + Date.now(),
+                    title,
+                    type: document.getElementById('event-type').value,
+                    status: document.getElementById('event-status').value,
+                    notes: document.getElementById('event-notes').value.trim(),
+                    date: normalizeDate({
+                        day: document.getElementById('event-day').value,
+                        monthIdx: document.getElementById('event-month').value,
+                        year: document.getElementById('event-year').value
+                    })
+                });
+
+                document.getElementById('event-title').value = '';
+                document.getElementById('event-notes').value = '';
+                saveAndRender();
+            });
+
+            document.getElementById('status-filter').addEventListener('change', renderEvents);
+
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-event-action]');
+                if (!button) return;
+                const selectedEvent = calendar.events.find(item => item.id === button.dataset.eventId);
+                if (!selectedEvent) return;
+
+                if (button.dataset.eventAction === 'toggle-done') {
+                    selectedEvent.status = selectedEvent.status === 'Hecho' ? 'Pendiente' : 'Hecho';
+                    saveAndRender();
+                    return;
+                }
+
+                if (button.dataset.eventAction === 'delete' && confirm('¿Eliminar este hito del calendario?')) {
+                    calendar.events = calendar.events.filter(item => item.id !== button.dataset.eventId);
+                    saveAndRender();
+                }
+            });
+        }
+
+        setupForms();
+        render();
+        initSharedCalendar();
+    </script>
+</body>
+</html>

@@ -13,11 +13,11 @@ create policy "Players can read campaign journal"
 on public.campaign_journal
 for select
 to anon
-using (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria'));
+using (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria', 'campaign-calendar'));
 
 create policy "Players can write campaign journal"
 on public.campaign_journal
 for all
 to anon
-using (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria'))
-with check (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria'));
+using (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria', 'campaign-calendar'))
+with check (id in ('ecos-costa', 'zyphira-mark', 'naval-shipyard', 'alacena-lyxandria', 'campaign-calendar'));
