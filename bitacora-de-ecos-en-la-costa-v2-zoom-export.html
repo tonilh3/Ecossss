@@ -641,7 +641,7 @@
     }
 
     function render() {
-        document.getElementById('year-display').innerText = `1500 CV/Llama Imperecedera`;
+        document.getElementById('year-display').innerText = `${db.calendar.year} CV/Llama Imperecedera`;
         document.getElementById('month-display').innerText = months[db.calendar.monthIdx];
         const dekhana = Math.ceil(db.calendar.day / 10);
         document.getElementById('day-display').innerText = `Día ${db.calendar.day} / ${dekhana}ª Dek`;

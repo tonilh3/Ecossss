@@ -320,6 +320,7 @@
                     <div class="current-month" id="current-month">Hammer</div>
                     <div class="current-year" id="current-year">1500 CV</div>
                     <p class="muted" id="current-dekhana">1ª dek</p>
+                    <p class="muted">Esta fecha viene de la bitácora compartida.</p>
                     <div class="date-actions">
                         <button type="button" data-shift="-10">-10 días</button>
                         <button type="button" data-shift="-1">-1 día</button>
@@ -329,7 +330,7 @@
                 </div>
 
                 <form class="panel" id="date-form">
-                    <h2>Ajustar fecha</h2>
+                    <h2>Ajustar fecha de la bitácora</h2>
                     <div class="form-grid">
                         <label>Día
                             <input type="number" id="date-day" min="1" max="30">
@@ -438,11 +439,13 @@
         };
 
         const LOCAL_STORAGE_KEY = 'ecos_campaign_calendar_v1';
+        const JOURNAL_LOCAL_STORAGE_KEY = 'cftd_journal_v2';
         const SUPABASE_CONFIG = {
             url: 'https://ypoelohbvwdpfpxscmxc.supabase.co',
             anonKey: 'sb_publishable_YKGCcBOhKoXDgju99kxG4w_oGd3J1oO',
             table: 'campaign_journal',
-            rowId: 'campaign-calendar'
+            rowId: 'campaign-calendar',
+            journalRowId: 'ecos-costa'
         };
 
         const EMPTY_CALENDAR = {
@@ -453,6 +456,8 @@
         let calendar = loadLocalCalendar();
         let remoteCalendar = null;
         let syncInProgress = false;
+        let journalSnapshot = null;
+        let eventDateEdited = false;
 
         if (window.supabase) {
             remoteCalendar = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
@@ -474,9 +479,18 @@
 
         function normalizeCalendar(value) {
             return {
-                current: normalizeDate(value?.current),
+                current: normalizeDate(loadLocalJournalDate() || value?.current),
                 events: Array.isArray(value?.events) ? value.events.map(normalizeEvent).filter(Boolean) : []
             };
+        }
+
+        function loadLocalJournalDate() {
+            try {
+                const journal = JSON.parse(localStorage.getItem(JOURNAL_LOCAL_STORAGE_KEY));
+                return journal?.calendar || null;
+            } catch (error) {
+                return null;
+            }
         }
 
         function normalizeDate(value) {
@@ -512,6 +526,16 @@
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(calendar));
         }
 
+        function saveLocalJournalDate() {
+            try {
+                const journal = JSON.parse(localStorage.getItem(JOURNAL_LOCAL_STORAGE_KEY)) || {};
+                journal.calendar = { ...calendar.current };
+                localStorage.setItem(JOURNAL_LOCAL_STORAGE_KEY, JSON.stringify(journal));
+            } catch (error) {
+                localStorage.setItem(JOURNAL_LOCAL_STORAGE_KEY, JSON.stringify({ calendar: calendar.current }));
+            }
+        }
+
         function setSyncStatus(text, isError = false) {
             const el = document.getElementById('sync-status');
             el.textContent = text;
@@ -526,8 +550,11 @@
             }
             setSyncStatus('Sincronizando calendario...');
             await pullSharedCalendar();
+            await pullSharedJournalDate();
             window.addEventListener('focus', pullSharedCalendar);
+            window.addEventListener('focus', pullSharedJournalDate);
             setInterval(pullSharedCalendar, 15000);
+            setInterval(pullSharedJournalDate, 15000);
         }
 
         async function pullSharedCalendar() {
@@ -579,6 +606,72 @@
             pushSharedCalendar();
         }
 
+        async function pullSharedJournalDate() {
+            if (!remoteCalendar) return;
+            const { data, error } = await remoteCalendar
+                .from(SUPABASE_CONFIG.table)
+                .select('data')
+                .eq('id', SUPABASE_CONFIG.journalRowId)
+                .maybeSingle();
+
+            if (error) {
+                setSyncStatus('Error al leer la fecha de la bitácora', true);
+                return;
+            }
+
+            if (data?.data) {
+                journalSnapshot = data.data;
+                calendar.current = normalizeDate(data.data.calendar);
+                saveLocalCalendar();
+                saveLocalJournalDate();
+                render();
+                setSyncStatus('Fecha de bitácora actualizada');
+            }
+        }
+
+        async function fetchJournalSnapshot() {
+            if (!remoteCalendar) return false;
+
+            const { data, error } = await remoteCalendar
+                .from(SUPABASE_CONFIG.table)
+                .select('data')
+                .eq('id', SUPABASE_CONFIG.journalRowId)
+                .maybeSingle();
+
+            if (error || !data?.data) return false;
+            return data.data;
+        }
+
+        async function pushSharedJournalDate() {
+            saveLocalJournalDate();
+            if (!remoteCalendar) return;
+            const latestJournal = await fetchJournalSnapshot();
+            if (!latestJournal) {
+                setSyncStatus('No pude actualizar la fecha de la bitácora', true);
+                return;
+            }
+
+            journalSnapshot = {
+                ...latestJournal,
+                calendar: { ...calendar.current }
+            };
+
+            const { error } = await remoteCalendar
+                .from(SUPABASE_CONFIG.table)
+                .upsert({
+                    id: SUPABASE_CONFIG.journalRowId,
+                    data: journalSnapshot,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) {
+                setSyncStatus('Error al guardar la fecha de la bitácora', true);
+                return;
+            }
+
+            setSyncStatus('Fecha guardada en la bitácora');
+        }
+
         function formatDate(date) {
             return `${date.day} de ${MONTHS[date.monthIdx]} de ${date.year} CV`;
         }
@@ -602,20 +695,29 @@
                 monthIdx: Math.floor(dayOfYear / 30),
                 day: (dayOfYear % 30) + 1
             };
-            saveAndRender();
+            saveLocalCalendar();
+            saveLocalJournalDate();
+            render();
+            pushSharedJournalDate();
         }
 
         function setSelectOptions(select) {
             select.innerHTML = MONTHS.map((month, index) => `<option value="${index}">${month}</option>`).join('');
         }
 
+        function setEventDateInputs(date) {
+            document.getElementById('event-day').value = date.day;
+            document.getElementById('event-month').value = date.monthIdx;
+            document.getElementById('event-year').value = date.year;
+        }
+
         function fillDateInputs() {
             document.getElementById('date-day').value = calendar.current.day;
             document.getElementById('date-month').value = calendar.current.monthIdx;
             document.getElementById('date-year').value = calendar.current.year;
-            document.getElementById('event-day').value = calendar.current.day;
-            document.getElementById('event-month').value = calendar.current.monthIdx;
-            document.getElementById('event-year').value = calendar.current.year;
+            if (!eventDateEdited) {
+                setEventDateInputs(calendar.current);
+            }
         }
 
         function render() {
@@ -739,7 +841,19 @@
                     monthIdx: document.getElementById('date-month').value,
                     year: document.getElementById('date-year').value
                 });
-                saveAndRender();
+                saveLocalCalendar();
+                saveLocalJournalDate();
+                render();
+                pushSharedJournalDate();
+            });
+
+            ['event-day', 'event-month', 'event-year'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    eventDateEdited = true;
+                });
+                document.getElementById(id).addEventListener('change', () => {
+                    eventDateEdited = true;
+                });
             });
 
             document.getElementById('event-form').addEventListener('submit', event => {
@@ -765,6 +879,7 @@
 
                 document.getElementById('event-title').value = '';
                 document.getElementById('event-notes').value = '';
+                eventDateEdited = false;
                 saveAndRender();
             });
 
