@@ -272,6 +272,11 @@
             justify-content: flex-end;
         }
 
+        .assign-btn {
+            width: auto;
+            padding: 0 12px;
+        }
+
         .icon-btn {
             width: 40px;
             min-height: 38px;
@@ -389,8 +394,9 @@
 
             <section class="events-panel">
                 <div class="panel">
-                    <h2>Próximos hitos</h2>
-                    <div class="event-list" id="upcoming-events"></div>
+                    <h2>Hito activo</h2>
+                    <p class="muted">Marcado por el grupo como lo que estáis haciendo ahora.</p>
+                    <div class="event-list" id="current-event"></div>
                 </div>
 
                 <div class="panel">
@@ -450,6 +456,7 @@
 
         const EMPTY_CALENDAR = {
             current: { day: 1, monthIdx: 0, year: 1500 },
+            activeEventId: '',
             events: []
         };
 
@@ -478,9 +485,16 @@
         }
 
         function normalizeCalendar(value) {
+            const events = Array.isArray(value?.events)
+                ? sortEventsByDate(value.events.map(normalizeEvent).filter(Boolean))
+                : [];
+            const activeEventId = events.some(event => event.id === value?.activeEventId)
+                ? String(value.activeEventId)
+                : '';
             return {
                 current: normalizeDate(loadLocalJournalDate() || value?.current),
-                events: Array.isArray(value?.events) ? value.events.map(normalizeEvent).filter(Boolean) : []
+                activeEventId,
+                events
             };
         }
 
@@ -522,7 +536,18 @@
             return ((date.year - 1) * 360) + (date.monthIdx * 30) + date.day;
         }
 
+        function compareEventsByDate(a, b) {
+            return dateToIndex(a.date) - dateToIndex(b.date)
+                || a.title.localeCompare(b.title, 'es')
+                || a.id.localeCompare(b.id);
+        }
+
+        function sortEventsByDate(events = calendar.events) {
+            return [...events].sort(compareEventsByDate);
+        }
+
         function saveLocalCalendar() {
+            calendar.events = sortEventsByDate();
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(calendar));
         }
 
@@ -731,13 +756,14 @@
         }
 
         function renderEvents() {
-            const currentIndex = dateToIndex(calendar.current);
-            const sortedEvents = [...calendar.events].sort((a, b) => dateToIndex(a.date) - dateToIndex(b.date));
-            const upcoming = sortedEvents
-                .filter(event => dateToIndex(event.date) >= currentIndex && event.status !== 'Hecho')
-                .slice(0, 6);
+            const sortedEvents = sortEventsByDate();
+            const activeEvent = sortedEvents.find(event => event.id === calendar.activeEventId);
 
-            renderEventList(document.getElementById('upcoming-events'), upcoming, 'No hay próximos hitos pendientes.');
+            renderEventList(
+                document.getElementById('current-event'),
+                activeEvent ? [activeEvent] : [],
+                'No hay hito activo. Marca uno en el calendario.'
+            );
 
             const filter = document.getElementById('status-filter').value;
             const filteredEvents = sortedEvents.filter(event => {
@@ -775,6 +801,13 @@
             const actions = document.createElement('div');
             actions.className = 'event-actions';
 
+            const assignButton = document.createElement('button');
+            assignButton.className = 'assign-btn';
+            assignButton.type = 'button';
+            assignButton.dataset.eventAction = event.id === calendar.activeEventId ? 'unset-active' : 'set-active';
+            assignButton.dataset.eventId = event.id;
+            assignButton.textContent = event.id === calendar.activeEventId ? 'Quitar actual' : 'Estamos haciendo esto';
+
             const doneButton = document.createElement('button');
             doneButton.className = 'icon-btn';
             doneButton.type = 'button';
@@ -791,7 +824,7 @@
             deleteButton.dataset.eventId = event.id;
             deleteButton.innerHTML = '<i class="material-icons">delete_outline</i>';
 
-            actions.append(doneButton, deleteButton);
+            actions.append(assignButton, doneButton, deleteButton);
             head.append(title, actions);
 
             const meta = document.createElement('div');
@@ -876,6 +909,7 @@
                         year: document.getElementById('event-year').value
                     })
                 });
+                calendar.events = sortEventsByDate();
 
                 document.getElementById('event-title').value = '';
                 document.getElementById('event-notes').value = '';
@@ -891,14 +925,33 @@
                 const selectedEvent = calendar.events.find(item => item.id === button.dataset.eventId);
                 if (!selectedEvent) return;
 
+                if (button.dataset.eventAction === 'set-active') {
+                    calendar.activeEventId = selectedEvent.id;
+                    if (selectedEvent.status !== 'Hecho') selectedEvent.status = 'En curso';
+                    saveAndRender();
+                    return;
+                }
+
+                if (button.dataset.eventAction === 'unset-active') {
+                    calendar.activeEventId = '';
+                    saveAndRender();
+                    return;
+                }
+
                 if (button.dataset.eventAction === 'toggle-done') {
                     selectedEvent.status = selectedEvent.status === 'Hecho' ? 'Pendiente' : 'Hecho';
+                    if (selectedEvent.status === 'Hecho' && calendar.activeEventId === selectedEvent.id) {
+                        calendar.activeEventId = '';
+                    }
                     saveAndRender();
                     return;
                 }
 
                 if (button.dataset.eventAction === 'delete' && confirm('¿Eliminar este hito del calendario?')) {
                     calendar.events = calendar.events.filter(item => item.id !== button.dataset.eventId);
+                    if (calendar.activeEventId === button.dataset.eventId) {
+                        calendar.activeEventId = '';
+                    }
                     saveAndRender();
                 }
             });
