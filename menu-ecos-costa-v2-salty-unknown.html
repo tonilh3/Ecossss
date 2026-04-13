@@ -103,6 +103,7 @@
         #content-area {
             flex: 1; /* Ocupa TODO el espacio sobrante */
             height: 100vh;
+            min-width: 0;
             position: relative;
             background: #000;
             display: flex; /* Para que el iframe se estire dentro */
@@ -129,6 +130,81 @@
             cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        #menu-backdrop {
+            display: none;
+        }
+
+        @media (max-width: 760px) {
+            body, html {
+                height: 100dvh;
+            }
+
+            #sidebar {
+                position: fixed;
+                inset: 0 auto 0 0;
+                width: min(86vw, 320px);
+                min-width: 0;
+                max-width: 320px;
+                height: 100dvh;
+                box-shadow: 20px 0 40px rgba(0,0,0,0.55);
+                transform: translateX(0);
+                margin-left: 0;
+                z-index: 1000;
+            }
+
+            #sidebar.hidden {
+                margin-left: 0;
+                transform: translateX(-105%);
+            }
+
+            .header-hub {
+                padding: 24px 18px 18px 70px;
+            }
+
+            .menu-section {
+                padding: 14px;
+                padding-bottom: 90px;
+            }
+
+            .nav-link {
+                padding: 14px 12px;
+            }
+
+            #content-area {
+                width: 100vw;
+                height: 100dvh;
+                flex: 1 1 auto;
+            }
+
+            iframe {
+                display: block;
+            }
+
+            .tv-toggle {
+                top: 14px;
+                bottom: auto;
+                left: 14px;
+                width: 46px;
+                height: 46px;
+            }
+
+            #menu-backdrop {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.52);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.25s ease;
+                z-index: 900;
+            }
+
+            #menu-backdrop.visible {
+                opacity: 1;
+                pointer-events: auto;
+            }
         }
     </style>
 </head>
@@ -197,11 +273,33 @@
         </div>
     </div>
 
+    <div id="menu-backdrop" onclick="closeMenuOnMobile()"></div>
+
     <div id="content-area">
         <iframe src="atlas-de-la-costa-de-la-espada-v2-zoom.html" id="main-frame"></iframe>
     </div>
 
     <script>
+        const MOBILE_MENU_QUERY = '(max-width: 760px)';
+        const mobileMenuMedia = window.matchMedia(MOBILE_MENU_QUERY);
+
+        function isMobileMenu() {
+            return mobileMenuMedia.matches;
+        }
+
+        function setMenuHidden(hidden) {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('menu-icon');
+            const backdrop = document.getElementById('menu-backdrop');
+            sidebar.classList.toggle('hidden', hidden);
+            icon.innerText = hidden ? 'menu' : 'close';
+            backdrop.classList.toggle('visible', isMobileMenu() && !hidden);
+        }
+
+        function closeMenuOnMobile() {
+            if (isMobileMenu()) setMenuHidden(true);
+        }
+
 		function loadPage(url, element) {
 			const frame = document.getElementById('main-frame');
 			frame.src = url;
@@ -214,6 +312,8 @@
 			if (element) {
 				element.classList.add('active');
 			}
+
+            closeMenuOnMobile();
 		}
 		
 		// Para que el primer ítem aparezca marcado al cargar la página
@@ -222,13 +322,23 @@
 			const initialLink = Array.from(document.querySelectorAll('.nav-link'))
 									 .find(a => a.innerText.includes('Atlas'));
 			if (initialLink) initialLink.classList.add('active');
+
+            if (isMobileMenu()) setMenuHidden(true);
 		};
 
         function toggleMenu() {
             const sidebar = document.getElementById('sidebar');
-            const icon = document.getElementById('menu-icon');
-            sidebar.classList.toggle('hidden');
-            icon.innerText = sidebar.classList.contains('hidden') ? 'visibility' : 'visibility_off';
+            setMenuHidden(!sidebar.classList.contains('hidden'));
+        }
+
+        const handleMobileMenuChange = event => {
+            setMenuHidden(event.matches);
+        };
+
+        if (mobileMenuMedia.addEventListener) {
+            mobileMenuMedia.addEventListener('change', handleMobileMenuChange);
+        } else {
+            mobileMenuMedia.addListener(handleMobileMenuChange);
         }
     </script>
 </body>
